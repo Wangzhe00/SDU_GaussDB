@@ -10,14 +10,8 @@
 - 需要替换页面时，替换引用位为0的页面，如果引用位置全部为1，则全部清0。
 
 下面是具体实例：
-<img src = "C:\Users\DELL\AppData\Roaming\Typora\typora-user-images\image-20210907170804475.png" align='left'/>
 
-
-
-
-
-
-
+![image-20210907192127620](Figure/image-20210907170804475.png)
 
 
 Clock算法主要有这么几个特点：
@@ -42,7 +36,7 @@ Clock算法主要有这么几个特点：
 
 ​	LIRS使用**IRR(Inter-Reference Recency)**来表示记录数据块访问历史信息，IRR表示最近连续访问同一个数据块之间访问其它不同数据块非重复个数。
 
-<img src = "C:\Users\DELL\AppData\Roaming\Typora\typora-user-images\image-20210907172120379.png" align='left'/>
+<img src = "Figure/image-20210907172120379.png" align='center'/>
 
 我们可以发现，LIRS使用了两个factors来管理页面的置换，而不是只考虑recency。
 
@@ -57,7 +51,7 @@ L = Llirs + Lhirs
 $$
 LIRS需要尽可能地保护LIR中的数据块不被替换掉，因此当发生缓存块淘汰时，只会淘汰HIR集合中的数据块。但是，LIR和HIR如何切换呢？根据IRR来切换。
 
-![image-20210907192127620](C:\Users\DELL\AppData\Roaming\Typora\typora-user-images\image-20210907192127620.png)
+![image-20210907192127620](Figure/image-20210907192127620.png)
 
 看上图，表中字母标志 `X` 表示数据块在某个时间点被访问, 比如数据块 A 分别在时间点 1、6 和 8 被访问，在时间点 10 数据块 {A, B, C, D, E} 的 recency 和 IRR 分别为:
 
