@@ -105,48 +105,48 @@ class SimpleBufferPool : public BufferPool {
             pagePart[0][idx] = sumCacheIdx;
             pagePart[1][idx] = sumNo;
             pagePart[2][idx] = POOL_SMALL_BLOCK / it.first;
-            pagePart[4][idx] = it.first;                        /* 1:8K, 2:16K, 3:32K, 4:2M */
+            pagePart[3][idx] = it.first;                        /* 1:8K, 2:16K, 3:32K, 4:2M */
             size2Idx[it.first] = idx;                           /* 8K:1, 16K:2, 32K:3, 2M:4 */
             idx++;
         }
     }
 
-  SimpleBufferPool(const string &file_name,
-                   const map<size_t, size_t> &page_no_info)
-      : BufferPool(file_name, page_no_info), page_no_info(page_no_info) {
-    LOG4CXX_INFO(logger, "BufferPool using file " << file_name);
+    SimpleBufferPool(const string &file_name,
+                    const map<size_t, size_t> &page_no_info)
+        : BufferPool(file_name, page_no_info), page_no_info(page_no_info) {
+        LOG4CXX_INFO(logger, "BufferPool using file " << file_name);
+        
+        for (int &fd : fds) {
+        fd = open(file_name.c_str(), O_RDWR);
+        if (fd <= 0) {
+            throw runtime_error("Can not open the source file");
+        }
+        }
+        /* Init const parameter */
+        InitConstPara();
 
-    for (int &fd : fds) {
-      fd = open(file_name.c_str(), O_RDWR);
-      if (fd <= 0) {
-        throw runtime_error("Can not open the source file");
-      }
+        /* Init memory pool, small and chunk */
+        assert(!InitPool(&pool1, 0, (MEM_SIZE >> 2) * 3 / POOL_SMALL_BLOCK));
+        assert(!InitPool(&pool2, 8, (MEM_SIZE >> 2) * 1 / POOL_CHUNK_BLOCK));
+        LOG4CXX_DEBUG(logger, "memory pool 1 size: " << pool1.size);
+        LOG4CXX_DEBUG(logger, "memory pool 2 size: " << pool2.size);
+        LOG4CXX_DEBUG(logger, "memory pool 1 capacity: " << pool1.capacity);
+        LOG4CXX_DEBUG(logger, "memory pool 2 capacity: " << pool2.capacity);
+
+        /* Init Hash bucket */
+        assert(!InitHashBucket(&bktSmall, HASH_BUCKET_SMALL_SIZE));
+        assert(!InitHashBucket(&bktChunk, HASH_BUCKET_CHUNK_SIZE));
+        LOG4CXX_DEBUG(logger, "hash bucket small size: " << bktSmall.size);
+        LOG4CXX_DEBUG(logger, "hash bucket small capSize: " << bktSmall.capSize);
+        LOG4CXX_DEBUG(logger, "hash bucket chunk size: " << bktChunk.size);
+        LOG4CXX_DEBUG(logger, "hash bucket chunk capSize: " << bktChunk.capSize);
+
+        /* Init ARC */
+        assert(!InitARC(&arc1, pool1.size));
+        assert(!InitARC(&arc2, pool2.size));
+        LOG4CXX_DEBUG(logger, "arc small RSize: " << arc1.RSize);
+        LOG4CXX_DEBUG(logger, "arc chunk RSize: " << arc2.RSize);
     }
-    /* Init const parameter */
-    InitConstPara();
-
-    /* Init memory pool, small and chunk */
-    assert(!InitPool(&pool1, 0, (MEM_SIZE >> 2) * 3 / POOL_SMALL_BLOCK));
-    assert(!InitPool(&pool2, 8, (MEM_SIZE >> 2) * 1 / POOL_CHUNK_BLOCK));
-    LOG4CXX_DEBUG(logger, "memory pool 1 size: " << pool1.size);
-    LOG4CXX_DEBUG(logger, "memory pool 2 size: " << pool2.size);
-    LOG4CXX_DEBUG(logger, "memory pool 1 capacity: " << pool1.capacity);
-    LOG4CXX_DEBUG(logger, "memory pool 2 capacity: " << pool2.capacity);
-
-    /* Init Hash bucket */
-    assert(!InitHashBucket(&bktSmall, HASH_BUCKET_SMALL_SIZE));
-    assert(!InitHashBucket(&bktChunk, HASH_BUCKET_CHUNK_SIZE));
-    LOG4CXX_DEBUG(logger, "hash bucket small size: " << bktSmall.size);
-    LOG4CXX_DEBUG(logger, "hash bucket small capSize: " << bktSmall.capSize);
-    LOG4CXX_DEBUG(logger, "hash bucket chunk size: " << bktChunk.size);
-    LOG4CXX_DEBUG(logger, "hash bucket chunk capSize: " << bktChunk.capSize);
-
-    /* Init ARC */
-    assert(!InitARC(&arc1, pool1.size));
-    assert(!InitARC(&arc2, pool2.size));
-    LOG4CXX_DEBUG(logger, "arc small RSize: " << arc1.RSize);
-    LOG4CXX_DEBUG(logger, "arc chunk RSize: " << arc2.RSize);
-  }
 
   size_t page_start_offset(pageno no) {
     size_t boundary = 0;
@@ -179,7 +179,7 @@ class SimpleBufferPool : public BufferPool {
         // assert(ret == page_size);
 
         Node *dst = NULL;
-        assert( (no, page_size, dst, fd));
+        assert(BufferPoolFindBlock(no, page_size, dst, fd));
         *buf = (void *)(dst->blk + (no - dst->page_start) * pagePart[4][size2Idx[page_size]]);
     }
 

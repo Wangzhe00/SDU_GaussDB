@@ -19,7 +19,7 @@
 #include "memPool.h"
 
 typedef struct {
-    uint16_t size;            /* can del */
+    // uint16_t size;            /* can del */
     struct hlist_head hlist;
 // TODO:
     /* add lock or mutex */
@@ -32,7 +32,7 @@ typedef struct {
     BucketNode *bkt;
 } HashBucket;
 
-uint32_t pagePart[3][PS_CNT];
+uint32_t pagePart[4][PS_CNT];
 unordered_map<uint32_t, uint8_t> size2Idx;
 
 static inline int GetPageType(uint32_t pno)
@@ -42,20 +42,6 @@ static inline int GetPageType(uint32_t pno)
 
 uint8_t InitHashBucket(HashBucket *hashBucket, uint32_t size, map<size_t, size_t> page_no_info)
 {
-    uint32_t idx = 1, sumNo = 0, sumCacheIdx = 0;
-    for (auto it : page_no_info) {
-        sumNo += it.second;
-        sumCacheIdx += it.second / (POOL_SMALL_BLOCK / it.first);
-        if (it.second % (POOL_SMALL_BLOCK / it.first) != 0) {
-            sumCacheIdx++;
-        }
-        pagePart[0][idx] = sumCacheIdx;
-        pagePart[1][idx] = sumNo;
-        pagePart[2][idx] = POOL_SMALL_BLOCK / it.first;
-        size2Idx[it.first] = idx;
-        idx++;
-    }
-
     hashBucket->size = size;
     hashBucket->capSize = sizeof(BucketNode) * size;
     hashBucket->bkt = (BucketNode *)malloc(hashBucket->capSize);
@@ -77,6 +63,11 @@ static inline uint32_t GetExpectBucketIdx(uint32_t pno, uint32_t psize)
     return pagePart[0][pIdx] + (pno - pagePart[1][pIdx]) / pagePart[2][idx];
 }
 
+
+/**
+ * TODO: hit后，直接返回Node，另一个线程专门去处理hit逻辑，榨干CPU
+ * 
+ **/
 uint8_t HashBucketFind(HashBucket *hashBucket, Node *dst, uint32_t pno, uint32_t psize)
 {
     assert(hashBucket);
@@ -85,17 +76,22 @@ uint8_t HashBucketFind(HashBucket *hashBucket, Node *dst, uint32_t pno, uint32_t
     Node *tar = NULL, *pos;
     if (!hlist_empty(hashBucket->bkt[bucketIdx].hlist)) { /* have nodes */
         hlist_for_each_entry(pos, hashBucket->bkt[bucketIdx].hlist, hlist) {
-            if (pos->stNo == expectBktIdx / bucketIdx) {
+            if (pos->pageFlg.layer == expectBktIdx / bucketIdx) {   /* deep = 1 */
                 tar = pos;
                 break;
             }
         }
+        
         if (tar != NULL) {   /* find! 类似于LRU，保证热度递减，即刚访问的节点在链表首位 */
-            hlist_del(tar->hash);
-            hlist_add_head(&tar->hash, &hashBucket->bkt[bucketIdx].hlist);
-            dst = tar;
-            // TODO: go ARC hit
-            return ROK;
+            // hlist_del(tar->hash);
+            // hlist_add_head(&tar->hash, &hashBucket->bkt[bucketIdx].hlist);
+            if (tar->pageFlg.isG) {
+
+            } else {
+                dst = tar;
+                // TODO: go ARC hit
+                return ROK;
+            }
         }
     }
     return ERR;

@@ -22,11 +22,12 @@ typedef struct {
      *       +-----------+-------------------------------+
      * 
      * [0:1] : page tag, 0: 8K, 1:16K, 2:32K, 3:2MB
-     * [2:2] : 0:LRU, 1:LFU
+     * [2:2] : schedule strategy, 0:LRU, 1:LFU
      * [3:3] : dirty flag, 1:dirty
      * [4:4] : size type, 0:small, 1:chunk
-     * [5:5] : used, 1:used
-     * [6:7] : multiple of bucket size, deepest bucket is 4 layers
+     * [5:5] : used, 1:used, is belong mempool
+     * [6:6] : multiple of bucket size, deepest bucket is 2 layers
+     * [7:7] : is ghost
      * 
      **/
     struct {
@@ -35,7 +36,8 @@ typedef struct {
         uint32_t dirty : 1;
         uint32_t poolType : 1;
         uint32_t used : 1;
-        uint32_t layer : 2;
+        uint32_t layer : 1;
+        uint32_t isG : 1;
     } pageFlg;
     uint32_t page_start;     /* first page num */
     
