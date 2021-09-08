@@ -3,8 +3,8 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 14:05:34
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-06 19:20:14
- * @FilePath: \gauss\src\memPool.cpp
+ * @LastEditTime: 2021-09-08 14:58:35
+ * @FilePath: \src\src\memPool.cpp
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,16 +33,17 @@ void *MallocZero(uint32_t size)
     return (void *)ret;
 }
 
-uint8_t InitPool(Pool *pool, uint8_t pageType, uint32_t size)
+
+uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
 {
     pool->size = size;
-    pool->capacity = (pageType == 8) ? size * POOL_CHUNK_BLOCK : size * POOL_SMALL_BLOCK;
+    pool->capacity = GET_LEFT_BIT(32, 3, pageFlg) ? size * POOL_CHUNK_BLOCK : size * POOL_SMALL_BLOCK;
     INIT_LIST_HEAD(&pool->unused.memP);
     INIT_LIST_HEAD(&pool->used.memP);
 
     for (uint32_t i = 0; i < size; ++i) {
         Node *node = (Node *)malloc(sizeof(Node));
-        node->pageType = pageType;
+        node->pageFlg = pageFlg;
         node->blk = MallocZero(ps << 13);
         INIT_HLIST_NODE(&node->hash);
         INIT_LIST_HEAD(&node->arc.lru);

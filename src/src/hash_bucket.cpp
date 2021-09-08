@@ -3,8 +3,8 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 20:12:25
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-07 22:37:53
- * @FilePath: \gauss\src\hash_bucket.cpp
+ * @LastEditTime: 2021-09-09 00:03:21
+ * @FilePath: \src\src\hash_bucket.cpp
  */
 #include <stdint.h>
 #include <stdlib.h>
@@ -19,6 +19,7 @@
 #include "list.h"
 #include "memPool.h"
 #include "hash_bucket.h"
+#include "replacement.h"
 
 
 uint32_t pagePart[4][PS_CNT];
@@ -49,7 +50,7 @@ static inline uint32_t GetExpectBucketIdx(uint32_t pno, uint32_t psize)
     return pagePart[0][pIdx - 1] + (pno - pagePart[1][pIdx - 1]) / pagePart[2][pIdx];
 }
 
-uint8_t HashBucketFind(HashBucket *hashBucket, Node *dst, uint32_t pno, uint32_t psize)
+uint8_t HashBucketFind(HashBucket *hashBucket, Rep *rep, Node *dst, uint32_t pno, uint32_t psize)
 {
     assert(hashBucket);
     uint32_t expectBktIdx = GetExpectBucketIdx(pno, psize);
@@ -63,9 +64,10 @@ uint8_t HashBucketFind(HashBucket *hashBucket, Node *dst, uint32_t pno, uint32_t
             }
         }
         if (tar != NULL) {   /* find! 类似于LRU，保证热度递减，即刚访问的节点在链表首位 */
-            hlist_del(&tar->hash);
-            hlist_add_head(&tar->hash, &hashBucket->bkt[bucketIdx].hlist);
+            // hlist_del(&tar->hash);
+            // hlist_add_head(&tar->hash, &hashBucket->bkt[bucketIdx].hlist);
             dst = tar;
+            assert(rep->hit(dst));
             // TODO: go ARC hit
             return ROK;
         }

@@ -3,8 +3,8 @@
  * @Author: Wangzhe
  * @Date: 2021-09-06 15:41:37
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-07 15:32:21
- * @FilePath: \gauss\inc\hash_bucket.h
+ * @LastEditTime: 2021-09-08 23:40:22
+ * @FilePath: \src\inc\hash_bucket.h
  */
 #ifndef HASH_BUCKET_H
 #define HASH_BUCKET_H
@@ -26,6 +26,8 @@ typedef struct {
 typedef struct {
     uint32_t size;
     uint32_t capSize;
+    uint32_t hit;
+    uint32_t query;
     BucketNode *bkt;
 } HashBucket;
 

@@ -3,14 +3,30 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 15:05:28
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-07 17:09:17
- * @FilePath: \gauss\inc\memPool.h
+ * @LastEditTime: 2021-09-08 22:12:46
+ * @FilePath: \src\inc\memPool.h
  */
 
 #ifndef MEMPOOL_H
 #define MEMPOOL_H
 #include <stdint.h>
 #include "list.h"
+
+
+typedef struct {
+    uint16_t freq;            /* frequency */
+    uint16_t len;             /* bucket real len */
+    struct list_head list;    /* list of head node */
+    struct list_head pool;    /* list of lfu memory pool */
+    struct hlist_head hhead;  /* hash head */
+} LFUHead;
+
+/* node size = 4 * sizeof(ptr) */
+typedef struct {
+    LFUHead *head;
+    hlist_node hnode;
+} LFUNode;
+
 
 /* size per blk = size * 8K */
 typedef struct {
@@ -21,10 +37,10 @@ typedef struct {
      * bit:  | xxxx_xxxx | xxxx_xxxx xxxx_xxxx xxxx_xxxx |
      *       +-----------+-------------------------------+
      * 
-     * [0:1] : page tag, 0: 8K, 1:16K, 2:32K, 3:2MB
+     * [0:1] : sizeType, 0: 8K, 1:16K, 2:32K, 3:2MB
      * [2:2] : schedule strategy, 0:LRU, 1:LFU
      * [3:3] : dirty flag, 1:dirty
-     * [4:4] : size type, 0:small, 1:chunk
+     * [4:4] : poolType, 0:small, 1:chunk
      * [5:5] : used, 1:used, is belong mempool
      * [6:6] : multiple of bucket size, deepest bucket is 2 layers
      * [7:7] : is ghost
@@ -47,7 +63,7 @@ typedef struct {
 
     union {
         struct list_head lru;
-        struct list_head lfu;
+        LFUNode lfu;
     }arc;
 
 } Node;

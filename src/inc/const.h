@@ -1,10 +1,10 @@
 /*
  * @Author: your name
  * @Date: 2021-09-05 14:36:28
- * @LastEditTime: 2021-09-07 15:19:05
+ * @LastEditTime: 2021-09-08 14:10:19
  * @LastEditors: Wangzhe
  * @Description: In User Settings Edit
- * @FilePath: \gauss\inc\const.h
+ * @FilePath: \src\inc\const.h
  */
 #ifndef CONST_H
 #define CONST_H
@@ -25,6 +25,9 @@
 #define HASH_BUCKET_CLOSE_CHUNK_SIZE (MX_DB_SIZE / POOL_CHUNK_BLOCK)
 #define HASH_BUCKET_CHUNK_SIZE 3847
 
+
+#define SET_LEFT_BIT(len, idx) (1 << (len - idx - 1))
+#define GET_LEFT_BIT(len, idx, val) ((1 << (len - idx - 1)) & val)
 
 typedef enum {
     PS_8K  =    8 * 1024,

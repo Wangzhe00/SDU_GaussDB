@@ -42,9 +42,13 @@ enum MSG_TYPE {
   INVALID_TYPE
 };
 
-Pool pool1, pool2;
-HashBucket bktSmall, bktChunk;
-ARC arc1, arc2;
+typedef struct {
+    Pool pool;
+    HashBucket bkt;
+    Rep rep;
+} Arch;
+
+Arch smallArch, chunkArch;
 
 
 struct __attribute__((packed)) Header {
@@ -124,28 +128,27 @@ class SimpleBufferPool : public BufferPool {
         }
         /* Init const parameter */
         InitConstPara();
-
         /* Init memory pool, small and chunk */
-        assert(!InitPool(&pool1, 0, (MEM_SIZE >> 2) * 3 / POOL_SMALL_BLOCK));
-        assert(!InitPool(&pool2, 8, (MEM_SIZE >> 2) * 1 / POOL_CHUNK_BLOCK));
-        LOG4CXX_DEBUG(logger, "memory pool 1 size: " << pool1.size);
-        LOG4CXX_DEBUG(logger, "memory pool 2 size: " << pool2.size);
-        LOG4CXX_DEBUG(logger, "memory pool 1 capacity: " << pool1.capacity);
-        LOG4CXX_DEBUG(logger, "memory pool 2 capacity: " << pool2.capacity);
+        assert(!InitPool(&smallArch.pool, 0,                   (MEM_SIZE >> 2) * 3 / POOL_SMALL_BLOCK));
+        assert(!InitPool(&chunkArch.pool, SET_LEFT_BIT(32, 3), (MEM_SIZE >> 2) * 1 / POOL_CHUNK_BLOCK));
+        LOG4CXX_DEBUG(logger, "memory pool 1 size: " << smallArch.pool.size);
+        LOG4CXX_DEBUG(logger, "memory pool 2 size: " << chunkArch.pool.size);
+        LOG4CXX_DEBUG(logger, "memory pool 1 capacity: " << smallArch.pool.capacity);
+        LOG4CXX_DEBUG(logger, "memory pool 2 capacity: " << chunkArch.pool.capacity);
 
         /* Init Hash bucket */
-        assert(!InitHashBucket(&bktSmall, HASH_BUCKET_SMALL_SIZE));
-        assert(!InitHashBucket(&bktChunk, HASH_BUCKET_CHUNK_SIZE));
-        LOG4CXX_DEBUG(logger, "hash bucket small size: " << bktSmall.size);
-        LOG4CXX_DEBUG(logger, "hash bucket small capSize: " << bktSmall.capSize);
-        LOG4CXX_DEBUG(logger, "hash bucket chunk size: " << bktChunk.size);
-        LOG4CXX_DEBUG(logger, "hash bucket chunk capSize: " << bktChunk.capSize);
+        assert(!InitHashBucket(&smallArch.bkt, HASH_BUCKET_SMALL_SIZE));
+        assert(!InitHashBucket(&chunkArch.bkt, HASH_BUCKET_CHUNK_SIZE));
+        LOG4CXX_DEBUG(logger, "hash bucket small size: " << smallArch.bkt.size);
+        LOG4CXX_DEBUG(logger, "hash bucket small capSize: " << smallArch.bkt.capSize);
+        LOG4CXX_DEBUG(logger, "hash bucket chunk size: " << chunkArch.bkt.size);
+        LOG4CXX_DEBUG(logger, "hash bucket chunk capSize: " << chunkArch.bkt.capSize);
 
         /* Init ARC */
-        assert(!InitARC(&arc1, pool1.size));
-        assert(!InitARC(&arc2, pool2.size));
-        LOG4CXX_DEBUG(logger, "arc small RSize: " << arc1.RSize);
-        LOG4CXX_DEBUG(logger, "arc chunk RSize: " << arc2.RSize);
+        smallArch.rep.InitRep(smallArch.pool.size, 0);
+        chunkArch.rep.InitRep(chunkArch.pool.size, 1);
+        LOG4CXX_DEBUG(logger, "arc small RSize: " << smallArch.rep.FExpLen);
+        LOG4CXX_DEBUG(logger, "arc chunk RSize: " << chunkArch.rep.FExpLen);
     }
 
   size_t page_start_offset(pageno no) {
@@ -163,7 +166,10 @@ class SimpleBufferPool : public BufferPool {
 
     uint8_t BufferPoolFindBlock(pageno no, unsigned int page_size, Node *dst, int fd)
     {
-        if (HashBucketFind())
+        Arch *arch = (page_size == PS_2M) ? &chunkArch : &smallArch;
+        if (HashBucketFind(&arch->bkt, &arch->rep, dst, no, page_size)) {
+            
+        }
     }
 
     void read_page(pageno no, unsigned int page_size, void *buf, int t_idx) override {

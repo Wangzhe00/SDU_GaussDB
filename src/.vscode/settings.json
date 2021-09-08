@@ -21,5 +21,10 @@
         "string_view": "cpp",
         "system_error": "cpp",
         "thread": "cpp"
-    }
+    },
+    "cSpell.words": [
+        "hhead",
+        "hlist",
+        "hnode"
+    ]
 }
