@@ -1,5 +1,16 @@
 [TOC]
 
+## 目录树介绍
+
+```shell
+├─paper        # 平时看的论文
+│  └─Figure    # 论文总结的图片
+├─report       # 队员总结
+│  ├─mazhaojia
+│  └─wangzhe
+└─src          # 框架源码
+```
+
 
 
 ## 比赛注意事项

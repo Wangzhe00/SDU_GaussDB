@@ -1,0 +1,15 @@
+#!/bin/bash
+
+g++ src/server.cpp -o output/server
+
+cd build
+make clean
+
+cmake ..
+make VERBOSE=1
+
+cd ./; sudo ./main ../in/in /tmp/sockfile.sock 0 8192 0 0
+
+
+
+
