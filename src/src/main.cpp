@@ -89,21 +89,25 @@ class SimpleBufferPool : public BufferPool {
  public:
     void InitConstPara()
     {
-        uint32_t idx = 1, sumNo = 0, sumCacheIdx = 0;
+        uint8_t idx = 1;
+        uint64_t sumNo = 0, sumCacheIdx = 0, sumBytes = 0;
         for (auto it : page_no_info) {
             // if (it.first == PS_2M) {
             //     break;
             // }
             sumNo += it.second;
+            sumBytes += it.first * 1ll * it.second;
             sumCacheIdx += it.second / (POOL_SMALL_BLOCK / it.first);
             if (it.second % (POOL_SMALL_BLOCK / it.first) != 0) {
                 sumCacheIdx++;
             }
-            pagePart[0][idx] = sumCacheIdx;
-            pagePart[1][idx] = sumNo;
-            pagePart[2][idx] = POOL_SMALL_BLOCK / it.first;
-            pagePart[3][idx] = it.first;                        /* 1:8K, 2:16K, 3:32K, 4:2M */
-            size2Idx[it.first] = idx;                           /* 8K:1, 16K:2, 32K:3, 2M:4 */
+            pagePart[CACHE_IDX][idx]        = sumCacheIdx;
+            pagePart[PAGE_PREFIX_SUM][idx]  = sumNo;
+            pagePart[BLCOK_PAGE_COUNT][idx] = POOL_SMALL_BLOCK / it.first;
+            pagePart[PAGE_SIZE][idx]        = it.first;                        /* 1:8K, 2:16K, 3:32K, 4:2M */
+            size2Idx[it.first]              = idx;                             /* 8K:1, 16K:2, 32K:3, 2M:4 */
+            pagePart[SUM_BYTES][idx]        = sumBytes;
+            pagePart[LAST_NUM][idx]         = it.second % (POOL_SMALL_BLOCK / it.first);
             idx++;
         }
     }
@@ -162,7 +166,7 @@ class SimpleBufferPool : public BufferPool {
         Arch *arch = (page_size == PS_2M) ? &largeArch : &smallArch;
         uint32_t bucketIdx;
         if (HashBucketFind(arch, dst, no, page_size, bucketIdx) == ERR) {
-            HashBucketMiss(arch, dst, no, page_size, bucketIdx);
+            HashBucketMiss(arch, dst, no, page_size, bucketIdx, fd);
         }
     }
 

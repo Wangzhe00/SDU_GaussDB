@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 14:05:34
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-08 14:58:35
+ * @LastEditTime: 2021-09-09 18:48:45
  * @FilePath: \src\src\memPool.cpp
  */
 #include <stdio.h>
@@ -41,6 +41,8 @@ uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
     pool->capacity = GET_LEFT_BIT(32, 4, pageFlg) ? size * POOL_LARGE_BLOCK : size * POOL_SMALL_BLOCK;
     pool->usedCnt = 0;
     pool->unusedCnt = size;
+    pool->poolType = (GET_LEFT_BIT(32, 4, pageFlg) > 0);
+    pool->blkSize = GET_LEFT_BIT(32, 4, pageFlg) : POOL_LARGE_BLOCK : POOL_SMALL_BLOCK;
     INIT_LIST_HEAD(&pool->unused.memP);
     INIT_LIST_HEAD(&pool->used.memP);
 

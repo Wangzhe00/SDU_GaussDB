@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-06 13:23:02
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-08 23:28:56
+ * @LastEditTime: 2021-09-09 23:46:20
  * @FilePath: \src\src\replacement.cpp
  */
 #include <stdint.h>
@@ -27,11 +27,11 @@ enum {
 
 ARC::ARC(uint32_t size, uint8_t flg) {
     LFUHead *lfuHead = NULL;
-    uint32_t lruLen = size * ARC_LRU_RATIO;
+    uint32_t lruSize = size * ARC_LRU_RATIO;
     uint32_t lfuSize = size - lruSize;
     this->RRealLen = this->gRRealLen = this->FRealLen = this->gFRealLen = 0;
-    this->RExpLen = this->gRExpLen = lruLen;
-    this->FExpLen = this->gFExpLen = lfuSize;
+    this->RExpLen = this->gFExpLen = lruSize;    /* size */
+    this->FExpLen = this->gRExpLen = lfuSize;    /* 0 */
     INIT_LIST_HEAD(this->R);
     INIT_LIST_HEAD(this->gR);
     INIT_LIST_HEAD(this->lfuHeadUsedPool);
@@ -96,7 +96,6 @@ void ARC::ARC_FHit(Node *node) {
     LFUHead *lfuHead  = node->arc.lfu.head;
     LFUHead *nextHead = NULL;
     LFUHead *newHead  = NULL;
-
     if (lfuHead->len == 1) {                                          /* 当前lfu头结点只有一个node */
         if (lfuHead->list.next == NULL) {                             /* 当前头结点的频数最高，直接频数加一 */
             lfuHead->freq++;
@@ -132,6 +131,32 @@ void ARC::ARC_FHit(Node *node) {
         node->arc.lfu.head = newHead;                                      /* 修改节点的lfu头指针，指向新的 */
     }
 }
+
+/**
+ * @description: Ghost LRU 缩减一个 key，由于 LRU  [头结点      ->       尾节点] 
+ *                                           遵循 [最近一次访问 -> 最远一次访问]
+ * @param {*}
+ * @return {*}
+ * @Date: 2021-09-09 22:41:12
+ */
+void ARC::LRU_GhostShrink() {
+    if (this->gRExpLen == 0) { /* 当前 gR 没有节点，说明当前调度纯是LRU，同初始状态 */
+        return;
+    }
+    struct list_head *tail = this->gR.prev;
+    list_del(tail);
+    list_add(tail, &this->gR);
+}
+
+void ARC::LRU_Shrink() {
+    struct list_head *tail = this->R.prev;
+    list_del(tail);
+    list_add(tail, &this->R);
+    if (this->gRExpLen != 0) {
+        
+    }
+}
+
 
 uint8_t ARC::hit(Node *node) {
     assert(node);

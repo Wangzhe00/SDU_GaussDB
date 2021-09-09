@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-08 12:57:05
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-08 23:30:20
+ * @LastEditTime: 2021-09-09 23:02:56
  * @FilePath: \src\inc\replacement.h
  */
 #ifndef REPLACEMENT_H
@@ -48,6 +48,8 @@ public:
      * @Date: 2021-09-08 21:40:28
      */
     void ARC_FHit(Node *node);
+    void LRU_GhostShrink();
+    void LRU_Shrink()
 
     uint8_t hit(Node *node);
 };
