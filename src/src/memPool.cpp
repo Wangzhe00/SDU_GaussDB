@@ -36,15 +36,18 @@ void *MallocZero(uint32_t size)
 
 uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
 {
+    uint32_t blockSize = GET_LEFT_BIT(32, 4, pageFlg) ? POOL_LARGE_BLOCK : POOL_SMALL_BLOCK;
     pool->size = size;
-    pool->capacity = GET_LEFT_BIT(32, 3, pageFlg) ? size * POOL_CHUNK_BLOCK : size * POOL_SMALL_BLOCK;
+    pool->capacity = GET_LEFT_BIT(32, 4, pageFlg) ? size * POOL_LARGE_BLOCK : size * POOL_SMALL_BLOCK;
+    pool->usedCnt = 0;
+    pool->unusedCnt = size;
     INIT_LIST_HEAD(&pool->unused.memP);
     INIT_LIST_HEAD(&pool->used.memP);
 
     for (uint32_t i = 0; i < size; ++i) {
         Node *node = (Node *)malloc(sizeof(Node));
         node->pageFlg = pageFlg;
-        node->blk = MallocZero(ps << 13);
+        node->blk = MallocZero(blockSize);
         INIT_HLIST_NODE(&node->hash);
         INIT_LIST_HEAD(&node->arc.lru);
         list_add(&node->memP, &pool->unused.memP);
@@ -59,6 +62,7 @@ uint8_t DeInitPool(Pool *pool, uint8_t ps, uint32_t size)
     list_for_each_entry_safe(pos, next, &pool->unused.memP, memP) {
         t = pos;
         list_del(&pos->memP);
+        free(t->blk);
         free(t);
     }
     return ROK;
