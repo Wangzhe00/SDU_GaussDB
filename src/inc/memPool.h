@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 15:05:28
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-09 18:48:10
+ * @LastEditTime: 2021-09-08 22:12:46
  * @FilePath: \src\inc\memPool.h
  */
 
@@ -56,6 +56,7 @@ typedef struct {
         uint32_t isG : 1;
     } pageFlg;
     uint32_t page_start;     /* first page num */
+    uint32_t bucketIdx;      /* hash bucket index */
     
     void *blk;               /* first address */
     struct list_head memP;   /* list for mempool */
@@ -73,8 +74,9 @@ typedef struct {
 typedef struct {
     uint8_t poolType;
     uint16_t size;
-    uint32_t blkSize;
     uint32_t capacity;
+    uint32_t usedCnt;
+    uint32_t unusedCnt;
     Node used;
     Node unused;
 }Pool;

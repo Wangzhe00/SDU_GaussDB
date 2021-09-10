@@ -117,13 +117,17 @@ uint8_t HashBucketMiss(Arch *arch, Node *dst, uint32_t pno, uint32_t psize, uint
         node->pageFlg.layer = 0;   // del
         node->pageFlg.isG = 0;
         node->page_start = pno - ((pno - pagePart[1][pIdx]) % pagePart[2][pIdx]);
+        node->bucketIdx = bucketIdx;
         hlist_add_head(&node->hash, &arch->bkt.bkt[bucketIdx].hhead);
         list_add(&node->arc.lru, &arch->rep.R);
         arch->rep.RRealLen++;
         Fetch(node, node->page_start, fetchSize, fd);
     } else {
         /* ARC 专用， 根据不同的置换算法去变换 */
+        WriteBack(list_entry(arch->rep.R.prev, Node, arc));
+        /* lock begin */
         arch->rep.LRU_GhostShrink();
-
+        
+        /* lock begin */
     }
 }

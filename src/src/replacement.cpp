@@ -49,11 +49,12 @@ ARC::ARC(uint32_t size, uint8_t flg) {
     
 void ARC::InitRep(uint32_t size, uint8_t flg) {
     LFUHead *lfuHead = NULL;
+    Node *node = NULL;
     uint32_t lruLen = size * ARC_LRU_RATIO;
     uint32_t lfuSize = size - lruSize;
     this->RRealLen = this->gRRealLen = this->FRealLen = this->gFRealLen = 0;
-    this->RExpLen = this->gRExpLen = lruLen;
-    this->FExpLen = this->gFExpLen = lfuSize;
+    this->RExpLen = this->gFExpLen = lruLen;
+    this->FExpLen = this->gRExpLen = lfuSize;
     INIT_LIST_HEAD(this->R);
     INIT_LIST_HEAD(this->gR);
     INIT_LIST_HEAD(this->lfuHeadUsedPool);
@@ -66,6 +67,18 @@ void ARC::InitRep(uint32_t size, uint8_t flg) {
         INIT_LIST_HEAD(&lfuHead->pool);
         INIT_HLIST_NODE(&lfuHead->hhead);
         list_add(lfuHead, &this->lfuHeadUnusedPool);
+    }
+    for (int i = 0; i < size; ++i) {
+        node = (Node *)malloc(sizeof(Node));
+        memset(node, 0, sizeof(Node));
+        node->pageFlg.isG = 1;
+        node->pageFlg.poolType = flg;
+        node->bucketIdx = BUCKET_MAX_IDX;
+        if (i < lfuLen) {                       /* 注意前 lfuLen 个是 gR 的长度 */
+            list_add(&node->arc.lru, &this->gR);
+        } else {
+            list_add(&node->arc.lru, &this->gF);
+        }
     }
 }
     
@@ -143,6 +156,10 @@ void ARC::LRU_GhostShrink() {
     if (this->gRExpLen == 0) { /* 当前 gR 没有节点，说明当前调度纯是LRU，同初始状态 */
         return;
     }
+    Node *node = list_entry(this->gR.prev, Node, arc);
+    if (this->gRRealLen == this->gRExpLen) {
+        list_del()
+    }
     struct list_head *tail = this->gR.prev;
     list_del(tail);
     list_add(tail, &this->gR);
@@ -150,8 +167,10 @@ void ARC::LRU_GhostShrink() {
 
 void ARC::LRU_Shrink() {
     struct list_head *tail = this->R.prev;
+    Node *node = list_entry(this->R.prev, Node, arc);
     list_del(tail);
     list_add(tail, &this->R);
+
     if (this->gRExpLen != 0) {
         
     }

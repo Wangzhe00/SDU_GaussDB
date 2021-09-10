@@ -17,7 +17,7 @@
 #define CHUNK_CACHE_SIZE (POOL_LARGE_BLOCK / PAGE_CHUNK_SIZE)
 
 
-#define ARC_LRU_RATIO 1.0
+#define ARC_LRU_RATIO 0.7
 
 #define HASH_BUCKET_CLOSE_SMALL_SIZE (MX_DB_SIZE / POOL_SMALL_BLOCK)
 #define HASH_BUCKET_SMALL_SIZE 120011
@@ -28,6 +28,8 @@
 
 #define SET_LEFT_BIT(len, idx) (1 << (len - idx - 1))
 #define GET_LEFT_BIT(len, idx, val) ((1 << (len - idx - 1)) & val)
+
+#define BUCKET_MAX_IDX 0xffffff
 
 typedef enum {
     PS_8K  =    8 * 1024,
