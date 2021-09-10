@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2021-09-05 14:36:28
- * @LastEditTime: 2021-09-08 14:10:19
+ * @LastEditTime: 2021-09-10 22:33:42
  * @LastEditors: Wangzhe
  * @Description: In User Settings Edit
  * @FilePath: \src\inc\const.h
@@ -30,6 +30,7 @@
 #define GET_LEFT_BIT(len, idx, val) ((1 << (len - idx - 1)) & val)
 
 #define BUCKET_MAX_IDX 0xffffff
+#define LIST_HEAD 0xffff
 
 typedef enum {
     PS_8K  =    8 * 1024,

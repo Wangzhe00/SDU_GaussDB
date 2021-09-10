@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 20:12:25
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-09 22:58:47
+ * @LastEditTime: 2021-09-10 22:17:47
  * @FilePath: \src\src\hash_bucket.cpp
  */
 #include <stdint.h>
@@ -76,17 +76,35 @@ uint8_t HashBucketFind(Arch *arch, Node *dst, uint32_t pno, uint32_t psize, uint
     return ERR;
 }
 
-inline uint64_t GetPageOffset(uint32_t pno, uint8_t pageType)
+inline uint64_t GetPageOffset(uint32_t pno, uint8_t sizeType)
 {
-    return pagePart[4][pageType - 1] + (pno - pagePart[1][pageType - 1]) * pagePart[3][pageType];
+    return pagePart[SUM_BYTES][sizeType - 1] + (pno - pagePart[PAGE_PREFIX_SUM][sizeType - 1]) * pagePart[PAGE_SIZE][sizeType];
 }
 
-void Fetch(Node *node, uint32_t pno, uint32_t fetchSize, int fd)
+void Fetch(Node *node, uint32_t pno, uint32_t fetchSize, uint64_t offset, int fd)
 {
-    uint32_t offset = GetPageOffset(pno, size2Idx[psize]);
     lseek(fd, offset, SEEK_SET);
     size_t ret = read(fd, node->blk, fetchSize);
-    assert(ret == fetchSize);    
+    assert(ret == fetchSize);
+}
+
+void WriteBack(Node *node, uint32_t fetchSize, int fd)
+{
+    if (!node->pageFlg.dirty) {
+        return ;
+    }
+    uint64_t offset = GetPageOffset(node->page_start, node->pageFlg.sizeType + 1); /* [0:3] -> [1:4] */
+    lseek(fd, offset, SEEK_SET);
+    size_t ret = write(fd, node->blk, fetchSize);
+    assert(ret == fetchSize);
+}
+
+static inline void InitNodePara(Node *node, uint8_t sizeType, uint8_t poolType, uint32_t bucketIdx)
+{
+    node->pageFlg = 0;
+    node->pageFlg.sizeType = sizeType;                      /* 初始化 pageFlg */
+    node->pageFlg.poolType = poolType;
+    node->bucketIdx = bucketIdx;
 }
 
 uint8_t HashBucketMiss(Arch *arch, Node *dst, uint32_t pno, uint32_t psize, uint32_t &bucketIdx, int fd)
@@ -94,40 +112,40 @@ uint8_t HashBucketMiss(Arch *arch, Node *dst, uint32_t pno, uint32_t psize, uint
     Node *node = NULL;
     Pool *pool = &arch->pool;
     uint8_t sizeType = size2Idx[psize];
+    uint64_t offset = GetPageOffset(pno, sizeType);
     uint32_t fetchSize = pool->blkSize;
-    if (bucketIdx == pagePart[0][sizeType] && pagePart[5][sizeType] != 0) {
-        fetchSize = pagePart[5][sizeType] * pagePart[3][sizeType];
+    if (bucketIdx == pagePart[CACHE_IDX][sizeType] && pagePart[LAST_NUM][sizeType] != 0) {
+        fetchSize = pagePart[LAST_NUM][sizeType] * pagePart[PAGE_SIZE][sizeType];
     }
     /**
      * NOTE: 如何处理极限情况，RExpLen = 0，FExpLen = size
-     *           初步分析： 与 gR hit 情况类似，也是需要扩大R，缩小F，但是概率极低，暂不考虑     * 
+     *           初步分析： 与 gR hit 情况类似，也是需要扩大R，缩小F，但是概率极低，暂不考虑
     */
     assert(arch->rep.RExpLen != 0);
-    
-    if (arch->rep.RRealLen < arch->rep.RExpLen) {                   /* 还可以从池子里拿Node */
+    /* lock begin */
+
+    if (arch->rep.RRealLen < arch->rep.RExpLen) {                   /* 从 unused 池子里拿Node */
         assert(pool->unusedCnt > 0);
+        pool->unusedCnt--;
+        pool->usedCnt++;
         node = list_entry(pool->unused.memP.next, Node, memP);      /* 获取 Node 头地址 */
         list_del(pool->unused.memP.next);                           /* 将 Node 从 unused 池子移动到 used 池子 */
         list_add(&node->memP, &pool->used.memP);
-        node->pageFlg.sizeType = sizeType - 1;                      /* 初始化 pageFlg */
-        node->pageFlg.rep = 0;    /* LRU */
-        node->pageFlg.dirty = 0;
-        node->pageFlg.poolType = pool->poolType;
-        node->pageFlg.used = 1;
-        node->pageFlg.layer = 0;   // del
-        node->pageFlg.isG = 0;
-        node->page_start = pno - ((pno - pagePart[1][pIdx]) % pagePart[2][pIdx]);
-        node->bucketIdx = bucketIdx;
-        hlist_add_head(&node->hash, &arch->bkt.bkt[bucketIdx].hhead);
-        list_add(&node->arc.lru, &arch->rep.R);
-        arch->rep.RRealLen++;
-        Fetch(node, node->page_start, fetchSize, fd);
+        InitNodePara(node, sizeType - 1, pool->poolType, bucketIdx);
+        node->page_start = pno - ((pno - pagePart[PAGE_PREFIX_SUM][sizeType]) % pagePart[BLCOK_PAGE_COUNT][sizeType]);
+        hlist_add_head(&node->hash, &arch->bkt.bkt[bucketIdx].hhead); /* 加入到对应的 hash 桶中 */
+        list_add(&node->arc.lru, &arch->rep.R);                       /* 加入到 R 中 */
+        arch->rep.RRealLen++;                                         /* 更新 R 实际长度 */
+        Fetch(node, node->page_start, fetchSize, offset, fd);
     } else {
         /* ARC 专用， 根据不同的置换算法去变换 */
-        WriteBack(list_entry(arch->rep.R.prev, Node, arc));
-        /* lock begin */
+        WriteBack(list_entry(arch->rep.R.prev, Node, arc), fetchSize, fd);
         arch->rep.LRU_GhostShrink();
-        
-        /* lock begin */
+        arch->rep.LRU_Shrink(&arch->bkt);
+        node = list_entry(&arch->rep.R.next, Node, arc);          /* R.next 节点已经放入 gR 中 */
+        InitNodePara(node, sizeType - 1, pool->poolType, bucketIdx);
+        node->page_start = pno - ((pno - pagePart[1][sizeType]) % pagePart[2][sizeType]);
+        Fetch(node, node->page_start, fetchSize, offset, fd);
     }
+    /* lock end */
 }

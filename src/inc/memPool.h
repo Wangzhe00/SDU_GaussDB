@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 15:05:28
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-08 22:12:46
+ * @LastEditTime: 2021-09-10 21:47:54
  * @FilePath: \src\inc\memPool.h
  */
 
@@ -18,13 +18,13 @@ typedef struct {
     uint16_t len;             /* bucket real len */
     struct list_head list;    /* list of head node */
     struct list_head pool;    /* list of lfu memory pool */
-    struct hlist_head hhead;  /* hash head */
+    struct list_head hhead;   /* hash head, need O(1) get tail in shrink F phase */
 } LFUHead;
 
 /* node size = 4 * sizeof(ptr) */
 typedef struct {
     LFUHead *head;
-    hlist_node hnode;
+    struct list_head hnode;
 } LFUNode;
 
 
@@ -32,10 +32,10 @@ typedef struct {
 typedef struct {
     /**
      * [pageFlg] descrition
-     *       +-----------+-------------------------------+
-     *       | 0123 4567 |       first page num          |
-     * bit:  | xxxx_xxxx | xxxx_xxxx xxxx_xxxx xxxx_xxxx |
-     *       +-----------+-------------------------------+
+     *       +-------------------------------------------+
+     *       | 0123 4567 8901 2345                       |
+     * bit:  | xxxx_xxxx_xxxx_xxxx xxxx_xxxx xxxx_xxxx   |
+     *       +-------------------------------------------+
      * 
      * [0:1] : sizeType, 0: 8K, 1:16K, 2:32K, 3:2MB
      * [2:2] : schedule strategy, 0:LRU, 1:LFU
@@ -75,6 +75,7 @@ typedef struct {
     uint8_t poolType;
     uint16_t size;
     uint32_t capacity;
+    uint32_t blkSize;
     uint32_t usedCnt;
     uint32_t unusedCnt;
     Node used;

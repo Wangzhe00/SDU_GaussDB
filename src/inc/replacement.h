@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-08 12:57:05
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-09 23:02:56
+ * @LastEditTime: 2021-09-10 22:40:49
  * @FilePath: \src\inc\replacement.h
  */
 #ifndef REPLACEMENT_H
@@ -25,8 +25,8 @@ public:
     struct list_head gR;
     struct list_head lfuHeadUsedPool;
     struct list_head lfuHeadUnusedPool;
-    LFUHead *F;
-    LFUHead *gF;
+    LFUHead F;
+    LFUHead gF;
 public:
     ARC(uint32_t size, uint8_t flg);
 
@@ -39,8 +39,11 @@ public:
      * @return {*}
      * @Date: 2021-09-08 21:44:17
      */
-    void LFUHeaderClear(LFUHead *lfuHead);
+    uint8_t LFU_GetFreq2();
+    void LFU_GetFreq2();
 
+    void ARC_RHit(Node *node);
+    LFUHead *LFU_GetNewHeadNode();
     /**
      * @description: 命中 ARC中 LFU 链表实现
      * @param {Node} *node Cache Line Node
@@ -49,7 +52,7 @@ public:
      */
     void ARC_FHit(Node *node);
     void LRU_GhostShrink();
-    void LRU_Shrink()
+    void LRU_Shrink(HashBucket *bkt);
 
     uint8_t hit(Node *node);
 };

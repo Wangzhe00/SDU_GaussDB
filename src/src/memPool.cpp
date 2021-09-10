@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 14:05:34
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-08 14:58:35
+ * @LastEditTime: 2021-09-10 22:19:26
  * @FilePath: \src\src\memPool.cpp
  */
 #include <stdio.h>
@@ -39,6 +39,7 @@ uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
     uint32_t blockSize = GET_LEFT_BIT(32, 4, pageFlg) ? POOL_LARGE_BLOCK : POOL_SMALL_BLOCK;
     pool->size = size;
     pool->capacity = GET_LEFT_BIT(32, 4, pageFlg) ? size * POOL_LARGE_BLOCK : size * POOL_SMALL_BLOCK;
+    pool->blkSize = GET_LEFT_BIT(32, 4, pageFlg) ? POOL_LARGE_BLOCK : POOL_SMALL_BLOCK;
     pool->usedCnt = 0;
     pool->unusedCnt = size;
     pool->poolType = (GET_LEFT_BIT(32, 4, pageFlg) > 0);
@@ -47,6 +48,7 @@ uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
 
     for (uint32_t i = 0; i < size; ++i) {
         Node *node = (Node *)malloc(sizeof(Node));
+        memset(node, 0, sizeof(Node));
         node->pageFlg = pageFlg;
         node->blk = MallocZero(blockSize);
         INIT_HLIST_NODE(&node->hash);
