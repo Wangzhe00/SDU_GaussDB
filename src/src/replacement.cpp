@@ -82,7 +82,7 @@ void ARC::InitRep(uint32_t size, uint8_t flg) {
         if (i < lfuLen) {                       /* 注意前 lfuLen 个是 gR 的长度 */
             list_add(&node->arc.lru, &this->gR);
         } else {
-            list_add(&node->arc.lru, &this->gF);
+            list_add(&node->arc.gLfu, &this->gF);
         }
     }
 }
@@ -192,6 +192,27 @@ uint8_t ARC::LFU_GetFreq2(LFUHead *freq2) {
     }
 }
 
+void ARC::LFU_GhostShrink() {
+    struct list_head *gFTail = this->gR.prev;
+    list_del(gFTail);
+    list_add(gFTail, &this->gR);
+    if (this->gFRealLen < this->gFExpLen) {
+        Node *node = list_entry(gFTail, Node, arc);
+        hlist_del(&node->hash);
+    } else {
+        this->gRRealLen++;
+    }    
+}
+
+void ARC::LFU_Shrink(HashBucket *bkt) {
+    assert(this->FRealLen != 0);
+    LFUHead *firstLfuHead = list_entry(this->F.list.next, LFUHead, list);
+    struct list_head *goGhost = firstLfuHead->hhead.prev;
+    list_del(goGhost);
+    Node *removeNode = list_entry(goGhost, Node, arc);
+    
+}
+
 void ARC::ARC_RHit(Node *node) {
     assert(node);
     node->pageFlg.rep = LFU;
@@ -214,7 +235,8 @@ void ARC::ARC_RHit(Node *node) {
             node->arc.lfu.head = newHead;                                    /* 修改节点的lfu头指针，指向新的 */
         }
     } else {
-        
+        this->LFU_GhostShrink();
+        this->LFU_Shrink();
     }
 }
 
@@ -232,7 +254,7 @@ void ARC::LRU_GhostShrink() {
     list_add(tail, &this->gR);
     Node *node = list_entry(tail, Node, arc);
     if (this->gRRealLen == this->gRExpLen) {      /* ghost 满了，需要擦掉 hash 链表 */
-        list_del(&node->hash);
+        hlist_del(&node->hash);
     } else {
         this->gRRealLen++;
     }

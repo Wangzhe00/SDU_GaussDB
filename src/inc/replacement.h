@@ -23,10 +23,10 @@ public:
     uint32_t lfuUnusedPoolSize;
     struct list_head R;
     struct list_head gR;
+    struct list_head gF;
+    LFUHead F;
     struct list_head lfuHeadUsedPool;
     struct list_head lfuHeadUnusedPool;
-    LFUHead F;
-    LFUHead gF;
 public:
     ARC(uint32_t size, uint8_t flg);
 
@@ -41,6 +41,9 @@ public:
      */
     uint8_t LFU_GetFreq2();
     void LFU_GetFreq2();
+    
+    void LFU_Shrink(HashBucket *bkt);
+    void LFU_GhostShrink();
 
     void ARC_RHit(Node *node);
     LFUHead *LFU_GetNewHeadNode();
