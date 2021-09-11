@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 14:05:34
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-10 22:19:26
+ * @LastEditTime: 2021-09-11 13:20:53
  * @FilePath: \src\src\memPool.cpp
  */
 #include <stdio.h>
@@ -43,8 +43,8 @@ uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
     pool->usedCnt = 0;
     pool->unusedCnt = size;
     pool->poolType = (GET_LEFT_BIT(32, 4, pageFlg) > 0);
-    INIT_LIST_HEAD(&pool->unused.memP);
-    INIT_LIST_HEAD(&pool->used.memP);
+    INIT_LIST_HEAD(&pool->used);
+    INIT_LIST_HEAD(&pool->unused);
 
     for (uint32_t i = 0; i < size; ++i) {
         Node *node = (Node *)malloc(sizeof(Node));
@@ -53,21 +53,21 @@ uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
         node->blk = MallocZero(blockSize);
         INIT_HLIST_NODE(&node->hash);
         INIT_LIST_HEAD(&node->arc.lru);
-        list_add(&node->memP, &pool->unused.memP);
+        list_add(&node->memP, &pool->unused);
     }
     return ROK;
 }
 
 uint8_t DeInitPool(Pool *pool, uint8_t ps, uint32_t size)
 {
-    Node *pos, *next, *t;
+    // Node *pos, *next, *t;
 
-    list_for_each_entry_safe(pos, next, &pool->unused.memP, memP) {
-        t = pos;
-        list_del(&pos->memP);
-        free(t->blk);
-        free(t);
-    }
+    // list_for_each_entry_safe(pos, next, &pool->unused, memP) {
+    //     t = pos;
+    //     list_del(&pos->memP);
+    //     free(t->blk);
+    //     free(t);
+    // }
     return ROK;
 }
 

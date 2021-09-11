@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 20:12:25
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-10 22:17:47
+ * @LastEditTime: 2021-09-11 17:15:22
  * @FilePath: \src\src\hash_bucket.cpp
  */
 #include <stdint.h>
@@ -68,35 +68,12 @@ uint8_t HashBucketFind(Arch *arch, Node *dst, uint32_t pno, uint32_t psize, uint
             // hlist_del(&tar->hash);
             // hlist_add_head(&tar->hash, &hashBucket->bkt[bucketIdx].hlist);
             dst = tar;
-            assert(arch->rep.hit(dst));
+            assert(arch->rep.hit(dst, &arch->bkt, &arch->pool));
             return ROK;
         }
     }
     /* next fetch cache line from disk */
     return ERR;
-}
-
-inline uint64_t GetPageOffset(uint32_t pno, uint8_t sizeType)
-{
-    return pagePart[SUM_BYTES][sizeType - 1] + (pno - pagePart[PAGE_PREFIX_SUM][sizeType - 1]) * pagePart[PAGE_SIZE][sizeType];
-}
-
-void Fetch(Node *node, uint32_t pno, uint32_t fetchSize, uint64_t offset, int fd)
-{
-    lseek(fd, offset, SEEK_SET);
-    size_t ret = read(fd, node->blk, fetchSize);
-    assert(ret == fetchSize);
-}
-
-void WriteBack(Node *node, uint32_t fetchSize, int fd)
-{
-    if (!node->pageFlg.dirty) {
-        return ;
-    }
-    uint64_t offset = GetPageOffset(node->page_start, node->pageFlg.sizeType + 1); /* [0:3] -> [1:4] */
-    lseek(fd, offset, SEEK_SET);
-    size_t ret = write(fd, node->blk, fetchSize);
-    assert(ret == fetchSize);
 }
 
 static inline void InitNodePara(Node *node, uint8_t sizeType, uint8_t poolType, uint32_t bucketIdx)

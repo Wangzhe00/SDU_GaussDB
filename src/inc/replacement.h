@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-08 12:57:05
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-10 22:40:49
+ * @LastEditTime: 2021-09-11 17:31:03
  * @FilePath: \src\inc\replacement.h
  */
 #ifndef REPLACEMENT_H
@@ -30,29 +30,15 @@ public:
 public:
     ARC(uint32_t size, uint8_t flg);
 
-    void ARC::InitRep(uint32_t size, uint8_t flg);
-    
-    
-    /**
-     * @description: 清洗 LFU 的头结点，放入 unused 池子中
-     * @param {LFUHead} *lfuHead
-     * @return {*}
-     * @Date: 2021-09-08 21:44:17
-     */
-    uint8_t LFU_GetFreq2();
+    void InitRep(uint32_t size, uint8_t flg);
+    void LFUHeaderClear(LFUHead *lfuHead)
     void LFU_GetFreq2();
-    
+    void ReturnMemPool(Node *node, Pool *pool);
     void LFU_Shrink(HashBucket *bkt);
     void LFU_GhostShrink();
-
     void ARC_RHit(Node *node);
+    void ARC_gRHit(Node *node);
     LFUHead *LFU_GetNewHeadNode();
-    /**
-     * @description: 命中 ARC中 LFU 链表实现
-     * @param {Node} *node Cache Line Node
-     * @return {*}
-     * @Date: 2021-09-08 21:40:28
-     */
     void ARC_FHit(Node *node);
     void LRU_GhostShrink();
     void LRU_Shrink(HashBucket *bkt);

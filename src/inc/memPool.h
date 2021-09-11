@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 15:05:28
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-10 21:47:54
+ * @LastEditTime: 2021-09-11 13:44:35
  * @FilePath: \src\inc\memPool.h
  */
 
@@ -65,6 +65,7 @@ typedef struct {
     union {
         struct list_head lru;
         LFUNode lfu;
+        struct list_head gLfu;
     }arc;
 
 } Node;
@@ -78,8 +79,8 @@ typedef struct {
     uint32_t blkSize;
     uint32_t usedCnt;
     uint32_t unusedCnt;
-    Node used;
-    Node unused;
+    struct list_head used;
+    struct list_head unused;
 }Pool;
 
 

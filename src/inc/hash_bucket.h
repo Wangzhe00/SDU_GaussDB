@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-06 15:41:37
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-10 21:44:08
+ * @LastEditTime: 2021-09-11 17:10:06
  * @FilePath: \src\inc\hash_bucket.h
  */
 #ifndef HASH_BUCKET_H
@@ -15,16 +15,6 @@
 #include "list.h"
 #include "memPool.h"
 #include "replacement.h"
-
-enum {
-    CACHE_IDX = 0,      /* cache line 前缀和 */
-    PAGE_PREFIX_SUM,    /* 页号前缀和 */
-    BLCOK_PAGE_COUNT,   /* 每个 cache line 包含的 page 个数 */
-    PAGE_SIZE,          /* page大小 */
-    SUM_BYTES,          /* 总字节数，在计算offset使用 */
-    LAST_NUM,           /* 最后一个 cache line 剩余的 page 个数，防止最后一个块读取失败*/
-    PART_CNT,
-}
 
 typedef struct {
     // uint16_t size;            /* can del */
