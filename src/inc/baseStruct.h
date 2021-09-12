@@ -3,8 +3,8 @@
  * @Author: Wangzhe
  * @Date: 2021-09-12 13:09:47
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-12 14:00:23
- * @FilePath: \sftp\src\inc\baseStruct.h
+ * @LastEditTime: 2021-09-12 17:28:25
+ * @FilePath: \src\inc\baseStruct.h
  */
 #ifndef BASE_STRUCT_H
 #define BASE_STRUCT_H
@@ -123,6 +123,7 @@ public:
     void LFUHeaderClear(LFUHead *lfuHead);
     void LFU_GetFreq2(LFUHead *freq2);
     void ReturnMemPool(Node *node, Pool *pool);
+    void GetNodeFromMemPool(Node *node, Pool *pool);
     void LFU_Shrink(HashBucket *bkt, Pool *pool);
     void LFU_GhostShrink();
     void ARC_RHit(Node *node, HashBucket* bkt, Pool *pool);

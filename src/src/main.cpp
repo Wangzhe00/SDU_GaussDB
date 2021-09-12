@@ -165,7 +165,7 @@ class SimpleBufferPool : public BufferPool {
         Arch *arch = (page_size == PS_2M) ? &largeArch : &smallArch;
         uint32_t bucketIdx;
         if (HashBucketFind(arch, dst, no, page_size, bucketIdx) == ERR) {
-            HashBucketMiss(arch, dst, no, page_size, bucketIdx, fd);
+            arch->rep.FULLMiss(arch, dst, no, page_size, bucketIdx, fd);
         }
     }
 

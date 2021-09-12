@@ -3,8 +3,8 @@
  * @Author: Wangzhe
  * @Date: 2021-09-06 13:23:02
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-12 13:47:17
- * @FilePath: \sftp\src\src\replacement.cpp
+ * @LastEditTime: 2021-09-12 17:33:23
+ * @FilePath: \src\src\replacement.cpp
  */
 #include <stdint.h>
 #include <stdlib.h>
@@ -15,6 +15,7 @@
 
 #include "errcode.h"
 #include "const.h"
+#include "list.h"
 #include "baseStruct.h"
 #include "replacement.h"
 
@@ -111,7 +112,7 @@ void ARC::ARC_FHit(Node *node) {
     LFUHead *nextHead = list_entry(lfuHead->list.next, LFUHead, list);
     LFUHead *newHead  = NULL;
     if (lfuHead->len == 1) {                                                /* 当前lfu头结点只有一个node */
-        if (nextHead->freq == _LIST_HEAD) {                                   /* 当前头结点的频数最高，即处在链表表尾，直接频数加一 */
+        if (nextHead->freq == _LIST_HEAD) {                                 /* 当前头结点的频数最高，即处在链表表尾，直接频数加一 */
             lfuHead->freq++;
         } else {
             if (nextHead->freq - lfuHead->freq > 1) {                       /* 下一个频数比当前节点频数至少大2，直接频数加一 */
@@ -197,10 +198,10 @@ void ARC::LFU_GhostShrink() {
     list_del(gFTail);
     list_add(gFTail, &this->gF);
     if (this->gFRealLen < this->gFExpLen) {
+        this->gRRealLen++;
+    } else {                                   /* 释放 hash 映射 */
         node = list_entry(gFTail, Node, arc);
         hlist_del(&node->hash);
-    } else {
-        this->gRRealLen++;
     }    
 }
 
@@ -211,9 +212,21 @@ void ARC::ReturnMemPool(Node *node, Pool *pool) {
     list_add(&node->memP, &pool->unused);
 }
 
+void ARC::GetNodeFromMemPool(Node *node, Pool *pool) {
+    pool->usedCnt++;
+    pool->unusedCnt--;
+    node = list_entry(pool->unused.next, Node, memP);
+    list_del(pool->unused.next);
+    list_add(&node->memP, pool->used);
+}
+
 
 /**
  * @description: LFU 需要踢出一个Node塞到 ghost LFU中，目前实现的LFU为基础版的LFU，踢出频数最小且最老的节点
+ * 
+ *               只有两种情况会收缩 LFU，将收缩的node交还给内存池去管理，并且 key 交给 ghost LFU
+ *                     1. 当 F 满，且命中 R
+ *                     2. 当 F 满，且命中 gR
  * @param {HashBucket} *bkt
  * @param {Pool} *pool
  * @return {*}
@@ -226,12 +239,12 @@ void ARC::LFU_Shrink(HashBucket *bkt, Pool *pool) {
     list_del(goGhostListNode);
     LFUNode *goGhostLfuNode = list_entry(goGhostListNode, LFUNode, hnode);   /* 取出最老的lfuNode节点 */
     goGhostLfuNode->head = NULL;
-    Node *removeNode = list_entry(goGhostLfuNode, Node, arc);               /* 从F中获取到需要调度出去的Node */
-    hlist_del(&removeNode->hash);                                           /* 解除 hash 映射 */
+    Node *removeNode = list_entry(goGhostLfuNode, Node, arc);                /* 从F中获取到需要调度出去的Node */
+    hlist_del(&removeNode->hash);                                            /* 解除 hash 映射 */
     this->ReturnMemPool(removeNode, pool);
     Node *gFHead = list_entry(this->gF.next, Node, arc);
     gFHead->bucketIdx = removeNode->bucketIdx;
-    hlist_add_head(&gFHead->hash, &bkt->bkt[gFHead->bucketIdx].hhead);  /* hash对应的 bucketIdx 绑定到新的 Node */
+    hlist_add_head(&gFHead->hash, &bkt->bkt[gFHead->bucketIdx].hhead);       /* hash对应的 bucketIdx 绑定到新的 Node */
 }
 
 void ARC::ARC_RHit(Node *node, HashBucket* bkt, Pool *pool) {
@@ -243,22 +256,51 @@ void ARC::ARC_RHit(Node *node, HashBucket* bkt, Pool *pool) {
     LFUHead *newHead = NULL;
     if (this->FRealLen < this->FExpLen) {
         this->FRealLen++;
-        this->LFU_GetFreq2(freq2);
-        freq2->len++;
-        node->arc.lfu.head = freq2;                                         /* 修改节点的lfu头指针，指向新的 */
-        list_add(&node->arc.lfu.hnode, &freq2->hhead);                      /* 更新节点的hash指针，指向新的LfuHeadNode */
     } else {
         this->LFU_GhostShrink();
         this->LFU_Shrink(bkt, pool);
-        this->LFU_GetFreq2(freq2);
-        freq2->len++;
-        node->arc.lfu.head = freq2;
-        list_add(&node->arc.lfu.hnode, &freq2->hhead);
     }
+    this->LFU_GetFreq2(freq2);
+    freq2->len++;
+    node->arc.lfu.head = freq2;                                         /* 修改节点的lfu头指针，指向新的 */
+    list_add(&node->arc.lfu.hnode, &freq2->hhead);                      /* 更新节点的hash指针，指向新的LfuHeadNode */
 }
 
-void ARC::FULLMiss() {
-    
+void ARC::InitNodePara(Node *node, uint8_t sizeType, uint8_t poolType, uint32_t bucketIdx)
+{
+    memset(&node->pageFlg, 0, sizeof(node->pageFlg));
+    node->pageFlg.sizeType = sizeType;                      /* 初始化 pageFlg */
+    node->pageFlg.poolType = poolType;
+    node->bucketIdx = bucketIdx;
+}
+
+void ARC::FULLMiss(Arch *arch, Node *dst, uint32_t pno, uint32_t psize, uint32_t &bucketIdx, int fd) {
+    assert(this->RExpLen != 0);
+    uint8_t sizeType = size2Idx[psize];
+    uint64_t offset = GetPageOffset(pno, sizeType);
+    uint32_t fetchSize = pool->blkSize;
+    if (bucketIdx == pagePart[CACHE_IDX][sizeType] && pagePart[LAST_NUM][sizeType] != 0) {
+        fetchSize = pagePart[LAST_NUM][sizeType] * pagePart[PAGE_SIZE][sizeType];
+    }
+    Node *newNode = NULL;
+    if (this->RRealLen < this->RExpLen) {
+        newNode = GetNodeFromMemPool();
+        InitNodePara(newNode, sizeType - 1, pool->poolType, bucketIdx);
+        node->page_start = pno - ((pno - pagePart[PAGE_PREFIX_SUM][sizeType]) % pagePart[BLCOK_PAGE_COUNT][sizeType]);
+        hlist_add_head(&node->hash, &arch->bkt.bkt[bucketIdx].hhead); /* 加入到对应的 hash 桶中 */
+        list_add(&node->arc.lru, &arch->rep.R);                       /* 加入到 R 中 */
+        arch->rep.RRealLen++;                                         /* 更新 R 实际长度 */
+        Fetch(node, node->page_start, fetchSize, offset, fd);
+    } else {
+        /* ARC 专用， 根据不同的置换算法去变换 */
+        WriteBack(list_entry(arch->rep.R.prev, Node, arc), fetchSize, fd);
+        arch->rep.LRU_GhostShrink();
+        arch->rep.LRU_Shrink(&arch->bkt);
+        node = list_entry(&arch->rep.R.next, Node, arc);          /* R.next 节点已经放入 gR 中 */
+        InitNodePara(node, sizeType - 1, pool->poolType, bucketIdx);
+        node->page_start = pno - ((pno - pagePart[1][sizeType]) % pagePart[2][sizeType]);
+        Fetch(node, node->page_start, fetchSize, offset, fd);
+    }                   
 }
 
 
