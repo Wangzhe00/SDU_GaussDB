@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-12 13:09:47
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-12 17:28:25
+ * @LastEditTime: 2021-09-12 19:14:29
  * @FilePath: \src\inc\baseStruct.h
  */
 #ifndef BASE_STRUCT_H
@@ -62,11 +62,7 @@ typedef struct {
     struct list_head memP;   /* list for mempool */
     struct hlist_node hash;  /* list for hash bucket */
 
-    union {
-        struct list_head lru;
-        LFUNode lfu;
-        struct list_head gLfu;
-    }arc;
+    struct list_head lru;   /* list for lru */
 
 } Node;
 
@@ -94,6 +90,7 @@ typedef struct {
     uint32_t size;
     uint32_t capSize;
     uint32_t miss;
+    uint32_t hit;
     uint32_t query;
     BucketNode *bkt;
 } HashBucket;
@@ -139,9 +136,16 @@ public:
 };
 
 typedef struct {
+    uint32_t lruSize;
+    struct list_head head;
+} LRU;
+
+
+
+typedef struct {
     Pool pool;
     HashBucket bkt;
-    ARC rep;
+    LRU rep;
 } Arch;
 
 #endif /* BASE_STRUCT_H */

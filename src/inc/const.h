@@ -1,18 +1,18 @@
 /*
  * @Author: your name
  * @Date: 2021-09-05 14:36:28
- * @LastEditTime: 2021-09-12 14:35:08
+ * @LastEditTime: 2021-09-12 18:31:31
  * @LastEditors: Wangzhe
  * @Description: In User Settings Edit
- * @FilePath: \sftp\src\inc\const.h
+ * @FilePath: \src\inc\const.h
  */
 #ifndef CONST_H
 #define CONST_H
 
 #define PAGE_CHUNK_SIZE (2 * 1024 * 1024)
-#define MEM_SIZE (2ll * 1024 * 1024 * 1024)
+#define MEM_SIZE (5ll * 1024 * 1024 * 1024)
 #define MX_DB_SIZE (30ll * 1024 * 1024 * 1024)
-#define POOL_SMALL_BLOCK (256 * 1024)
+#define POOL_SMALL_BLOCK (32 * 1024)
 #define POOL_LARGE_BLOCK (8 * 1024 * 1024)
 #define CHUNK_CACHE_SIZE (POOL_LARGE_BLOCK / PAGE_CHUNK_SIZE)
 
@@ -20,7 +20,7 @@
 #define ARC_LRU_RATIO 0.7
 
 #define HASH_BUCKET_CLOSE_SMALL_SIZE (MX_DB_SIZE / POOL_SMALL_BLOCK)
-#define HASH_BUCKET_SMALL_SIZE 120011
+#define HASH_BUCKET_SMALL_SIZE 983063
 
 #define HASH_BUCKET_CLOSE_CHUNK_SIZE (MX_DB_SIZE / POOL_LARGE_BLOCK)
 #define HASH_BUCKET_CHUNK_SIZE 3847

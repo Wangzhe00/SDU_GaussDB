@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-06 13:23:02
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-12 17:33:23
+ * @LastEditTime: 2021-09-12 19:18:13
  * @FilePath: \src\src\replacement.cpp
  */
 #include <stdint.h>
@@ -377,6 +377,27 @@ uint8_t ARC::hit(Node *node, HashBucket* bkt, Pool *pool) {
     }
     return ROK;
 }
+
+
+
+
+/* LRU begin */
+
+uint8_t InitLRU(LRU *lru) {
+    lru->lurSize = 0;
+    INIT_LIST_HEAD(&lru->head);
+}
+
+
+
+
+
+/* LRU end */
+
+
+
+
+
 
 
 

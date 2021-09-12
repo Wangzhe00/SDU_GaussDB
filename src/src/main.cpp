@@ -125,8 +125,8 @@ class SimpleBufferPool : public BufferPool {
         /* Init const parameter */
         InitConstPara();
         /* Init memory pool, small and chunk */
-        assert(!InitPool(&smallArch.pool, 0,                   (MEM_SIZE >> 2) * 3 / POOL_SMALL_BLOCK));
-        assert(!InitPool(&largeArch.pool, SET_LEFT_BIT(32, 4), (MEM_SIZE >> 2) * 1 / POOL_LARGE_BLOCK));
+        assert(!InitPool(&smallArch.pool, 0,                   (MEM_SIZE >> 2) * 4 / POOL_SMALL_BLOCK));
+        assert(!InitPool(&largeArch.pool, SET_LEFT_BIT(32, 4), (MEM_SIZE >> 2) * 0 / POOL_LARGE_BLOCK));
         LOG4CXX_DEBUG(logger, "memory pool 1 size: " << smallArch.pool.size);
         LOG4CXX_DEBUG(logger, "memory pool 2 size: " << largeArch.pool.size);
         LOG4CXX_DEBUG(logger, "memory pool 1 capacity: " << smallArch.pool.capacity);
@@ -140,11 +140,11 @@ class SimpleBufferPool : public BufferPool {
         LOG4CXX_DEBUG(logger, "hash bucket chunk size: " << largeArch.bkt.size);
         LOG4CXX_DEBUG(logger, "hash bucket chunk capSize: " << largeArch.bkt.capSize);
 
-        /* Init ARC */
-        smallArch.rep.InitRep(smallArch.pool.size, 0);
-        largeArch.rep.InitRep(largeArch.pool.size, 1);
-        LOG4CXX_DEBUG(logger, "arc small RSize: " << smallArch.rep.FExpLen);
-        LOG4CXX_DEBUG(logger, "arc chunk RSize: " << largeArch.rep.FExpLen);
+        /* Init LRU */
+        InitLRU(&smallArch.rep);
+        InitLRU(&largeArch.rep);
+        LOG4CXX_DEBUG(logger, "arc small RSize: " << smallArch.rep.lurSize);
+        LOG4CXX_DEBUG(logger, "arc chunk RSize: " << largeArch.rep.lurSize);
     }
 
     size_t page_start_offset(pageno no) {
@@ -163,14 +163,20 @@ class SimpleBufferPool : public BufferPool {
     uint8_t BufferPoolFindBlock(pageno no, unsigned int page_size, Node *dst, int fd)
     {
         Arch *arch = (page_size == PS_2M) ? &largeArch : &smallArch;
-        uint32_t bucketIdx;
-        if (HashBucketFind(arch, dst, no, page_size, bucketIdx) == ERR) {
-            arch->rep.FULLMiss(arch, dst, no, page_size, bucketIdx, fd);
-        }
+        assert(HashBucketFind(arch, dst, no, page_size, fd));
+        return ROK;
+    }
+
+    uint8_t BufferPoolWritePage(pageno no, unsigned int page_size, Node *dst, int fd, void *buf) {
+        Arch *arch = (page_size == PS_2M) ? &largeArch : &smallArch;
+        assert(HashBucketFind(arch, dst, no, page_size, fd));
+        dst->pageFlg.dirty = 1;
+        memcpy(dst->blk + (no - dst->page_start) * page_size, buf, page_size);
+        return ROK;
     }
 
     void read_page(pageno no, unsigned int page_size, void *buf, int t_idx) override {
-        size_t offset = page_start_offset(no);
+        // size_t offset = page_start_offset(no);
         int fd = fds[t_idx];
         // lseek(fd, offset, SEEK_SET);
         // size_t ret = read(fd, buf, page_size);
@@ -187,11 +193,13 @@ class SimpleBufferPool : public BufferPool {
     }
 
     void write_page(pageno no, unsigned int page_size, void *buf, int t_idx) override {
-        uint64_t offset = page_start_offset(no);
+        // uint64_t offset = page_start_offset(no);
         int fd = fds[t_idx];
-        lseek(fd, offset, SEEK_SET);
-        size_t ret = write(fd, buf, page_size);
-        assert(ret == page_size);
+        // lseek(fd, offset, SEEK_SET);
+        // size_t ret = write(fd, buf, page_size);
+        // assert(ret == page_size);
+
+        assert(BufferPoolWritePage(no, page_size, dst, fd, buf));
     }
 
     ~SimpleBufferPool() override {
