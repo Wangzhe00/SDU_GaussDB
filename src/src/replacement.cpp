@@ -3,8 +3,8 @@
  * @Author: Wangzhe
  * @Date: 2021-09-06 13:23:02
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-11 17:37:42
- * @FilePath: \src\src\replacement.cpp
+ * @LastEditTime: 2021-09-12 13:47:17
+ * @FilePath: \sftp\src\src\replacement.cpp
  */
 #include <stdint.h>
 #include <stdlib.h>
@@ -13,12 +13,10 @@
 #include <sys/mman.h>
 #include <map>
 
-#include "replacement.h"
 #include "errcode.h"
 #include "const.h"
-#include "list.h"
-#include "memPool.h"
-#include "hash_bucket.h"
+#include "baseStruct.h"
+#include "replacement.h"
 
 enum {
     LRU = 0,
@@ -26,52 +24,37 @@ enum {
 };
 
 
-ARC::ARC(uint32_t size, uint8_t flg) {
-    LFUHead *lfuHead = NULL;
-    uint32_t lruSize = size * ARC_LRU_RATIO;
-    uint32_t lfuSize = size - lruSize;
-    this->RRealLen = this->gRRealLen = this->FRealLen = this->gFRealLen = 0;
-    this->RExpLen = this->gFExpLen = lruSize;    /* size */
-    this->FExpLen = this->gRExpLen = lfuSize;    /* 0 */
-    INIT_LIST_HEAD(this->R);
-    INIT_LIST_HEAD(this->gR);
-    INIT_LIST_HEAD(this->lfuHeadUsedPool);
-    INIT_LIST_HEAD(this->lfuHeadUnusedPool);
-    uint32_t lfuHeadPoolSize = flg ? (HASH_BUCKET_CHUNK_SIZE >> 2) : (HASH_BUCKET_SMALL_SIZE >> 2);
-    for (int i = 0; i < lfuHeadPoolSize; ++i) {
-        lfuHead = (LFUHead *)malloc(sizeof(LFUHead));
-        lfuHead->freq = 0;
-        lfuHead->len = 0;
-        INIT_LIST_HEAD(&lfuHead->pool);
-        INIT_HLIST_NODE(&lfuHead->hhead);
-        list_add(lfuHead, &this->lfuHeadUnusedPool);
-    }
+ARC::ARC() {
+    
 }
     
 void ARC::InitRep(uint32_t size, uint8_t flg) {
     LFUHead *lfuHead = NULL;
     Node *node = NULL;
-    uint32_t lruLen = size * ARC_LRU_RATIO;
+    uint32_t lruSize = size * ARC_LRU_RATIO;
     uint32_t lfuSize = size - lruSize;
     this->RRealLen = this->gRRealLen = this->FRealLen = this->gFRealLen = 0;
-    this->RExpLen = this->gFExpLen = lruLen;
+    this->RExpLen = this->gFExpLen = lruSize;
     this->FExpLen = this->gRExpLen = lfuSize;
-    INIT_LIST_HEAD(this->R);
-    INIT_LIST_HEAD(this->gR);
-    INIT_LIST_HEAD(this->lfuHeadUsedPool);
-    INIT_LIST_HEAD(this->lfuHeadUnusedPool);
-    INIT_LIST_HEAD(this->F.list);
-    INIT_LIST_HEAD(this->gF.list);
-    F.freq = LIST_HEAD;
-    gF.freq = LIST_HEAD;
+    INIT_LIST_HEAD(&this->R);
+    INIT_LIST_HEAD(&this->gR);
+    INIT_LIST_HEAD(&this->gF);
+    INIT_LIST_HEAD(&this->lfuHeadUsedPool);
+    INIT_LIST_HEAD(&this->lfuHeadUnusedPool);
+    INIT_LIST_HEAD(&this->F.list);
+    INIT_LIST_HEAD(&this->F.pool);
+    INIT_LIST_HEAD(&this->F.hhead);
+    F.freq = _LIST_HEAD;
+    F.len = 0;
     uint32_t lfuHeadPoolSize = flg ? (HASH_BUCKET_CHUNK_SIZE >> 2) : (HASH_BUCKET_SMALL_SIZE >> 2);
     for (int i = 0; i < lfuHeadPoolSize; ++i) {
         lfuHead = (LFUHead *)malloc(sizeof(LFUHead));
         lfuHead->freq = 0;
         lfuHead->len = 0;
+        INIT_LIST_HEAD(&lfuHead->list);
         INIT_LIST_HEAD(&lfuHead->pool);
-        INIT_HLIST_NODE(&lfuHead->hhead);
-        list_add(lfuHead, &this->lfuHeadUnusedPool);
+        INIT_LIST_HEAD(&lfuHead->hhead);
+        list_add(&lfuHead->pool, &this->lfuHeadUnusedPool);
     }
     for (int i = 0; i < size; ++i) {
         node = (Node *)malloc(sizeof(Node));
@@ -79,7 +62,7 @@ void ARC::InitRep(uint32_t size, uint8_t flg) {
         node->pageFlg.isG = 1;
         node->pageFlg.poolType = flg;
         node->bucketIdx = BUCKET_MAX_IDX;
-        if (i < lfuLen) {                       /* 注意前 lfuLen 个是 gR 的长度 */
+        if (i < lfuSize) {                       /* 注意前 lfuSize 个是 gR 的长度 */
             list_add(&node->arc.lru, &this->gR);
         } else {
             list_add(&node->arc.gLfu, &this->gF);
@@ -128,7 +111,7 @@ void ARC::ARC_FHit(Node *node) {
     LFUHead *nextHead = list_entry(lfuHead->list.next, LFUHead, list);
     LFUHead *newHead  = NULL;
     if (lfuHead->len == 1) {                                                /* 当前lfu头结点只有一个node */
-        if (nextHead->freq == LIST_HEAD) {                                   /* 当前头结点的频数最高，即处在链表表尾，直接频数加一 */
+        if (nextHead->freq == _LIST_HEAD) {                                   /* 当前头结点的频数最高，即处在链表表尾，直接频数加一 */
             lfuHead->freq++;
         } else {
             if (nextHead->freq - lfuHead->freq > 1) {                       /* 下一个频数比当前节点频数至少大2，直接频数加一 */
@@ -143,7 +126,7 @@ void ARC::ARC_FHit(Node *node) {
     } else {
         list_del(&node->arc.lfu.hnode);                                     /* 从当前lfu桶中删除节点 */
         lfuHead->len--;
-        if (nextHead->freq != LIST_HEAD) {
+        if (nextHead->freq != _LIST_HEAD) {
             if (nextHead->freq - lfuHead->freq == 1) {
                 node->arc.lfu.head = nextHead;                              /* 修改节点的lfu头指针，指向新的 */
                 list_add(&node->arc.lfu.hnode, &nextHead->hhead);           /* 更新节点的hash指针，即将从当前桶移入后一个桶中 */
@@ -224,8 +207,8 @@ void ARC::LFU_GhostShrink() {
 void ARC::ReturnMemPool(Node *node, Pool *pool) {
     pool->usedCnt--;
     pool->unusedCnt++;
-    list_del(&removeNode->memP);                                /* 从 used 归还至 unused 缓冲池 */
-    list_add(&removeNode->memP, &pool->unused);
+    list_del(&node->memP);                                /* 从 used 归还至 unused 缓冲池 */
+    list_add(&node->memP, &pool->unused);
 }
 
 
@@ -330,6 +313,10 @@ void ARC::ARC_gRHit(Node *node) {
 
 }
 
+void ARC::ARC_gFHit(Node *node) {
+
+}
+
 
 uint8_t ARC::hit(Node *node, HashBucket* bkt, Pool *pool) {
     assert(node);
@@ -349,14 +336,5 @@ uint8_t ARC::hit(Node *node, HashBucket* bkt, Pool *pool) {
     return ROK;
 }
 
-
-
-Rep::Rep(uint32_t size): ARC(size) {
-
-}
-
-Rep::~Rep(uint32_t size) {
-
-}
 
 

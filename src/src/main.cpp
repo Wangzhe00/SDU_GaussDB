@@ -19,11 +19,9 @@
 #include <string.h>
 
 #include "const.h"
-#include "error.h"
-#include "list.h"
+#include "errcode.h"
 #include "memPool.h"
 #include "hash_bucket.h"
-#include "replacement.h"
 
 // extern "C" {
 
@@ -35,6 +33,10 @@ using pageno = unsigned int;
 static bool g_program_shutdown = false;
 static int server_socket = -1;
 static log4cxx::LoggerPtr logger = log4cxx::Logger::getLogger("EXAMPLE");
+
+
+extern uint64_t pagePart[PART_CNT][PS_CNT];
+extern std::unordered_map<uint32_t, uint8_t> size2Idx;
 
 enum MSG_TYPE {
   GET = 0,
@@ -84,30 +86,27 @@ class BufferPool {
 
 class SimpleBufferPool : public BufferPool {
  protected:
-  map<size_t, size_t> page_no_info;
-  int fds[32]{};
+    map<size_t, size_t> page_no_info;
+    int fds[32]{};
  public:
-    void InitConstPara()
-    {
+    void InitConstPara() {
         uint8_t idx = 1;
         uint64_t sumNo = 0, sumCacheIdx = 0, sumBytes = 0;
         for (auto it : page_no_info) {
-            // if (it.first == PS_2M) {
-            //     break;
-            // }
+            uint32_t blockSize = (it.first == PS_2M) ? POOL_LARGE_BLOCK : POOL_SMALL_BLOCK;
             sumNo += it.second;
             sumBytes += it.first * 1ll * it.second;
-            sumCacheIdx += it.second / (POOL_SMALL_BLOCK / it.first);
-            if (it.second % (POOL_SMALL_BLOCK / it.first) != 0) {
+            sumCacheIdx += it.second / (blockSize / it.first);
+            if (it.second % (blockSize / it.first) != 0) {
                 sumCacheIdx++;
             }
             pagePart[CACHE_IDX][idx]        = sumCacheIdx;
             pagePart[PAGE_PREFIX_SUM][idx]  = sumNo;
-            pagePart[BLCOK_PAGE_COUNT][idx] = POOL_SMALL_BLOCK / it.first;
+            pagePart[BLCOK_PAGE_COUNT][idx] = blockSize / it.first;
             pagePart[PAGE_SIZE][idx]        = it.first;                        /* 1:8K, 2:16K, 3:32K, 4:2M */
             size2Idx[it.first]              = idx;                             /* 8K:1, 16K:2, 32K:3, 2M:4 */
             pagePart[SUM_BYTES][idx]        = sumBytes;
-            pagePart[LAST_NUM][idx]         = it.second % (POOL_SMALL_BLOCK / it.first);
+            pagePart[LAST_NUM][idx]         = it.second % pagePart[BLCOK_PAGE_COUNT][idx];
             idx++;
         }
     }
@@ -148,18 +147,18 @@ class SimpleBufferPool : public BufferPool {
         LOG4CXX_DEBUG(logger, "arc chunk RSize: " << largeArch.rep.FExpLen);
     }
 
-  size_t page_start_offset(pageno no) {
-    size_t boundary = 0;
-    for (auto &range : page_no_info) {
-      if (no >= range.second) {
-        boundary += range.first * range.second;
-        no -= range.second;
-      } else {
-        return boundary + (no * range.first);
-      }
+    size_t page_start_offset(pageno no) {
+        size_t boundary = 0;
+        for (auto &range : page_no_info) {
+        if (no >= range.second) {
+            boundary += range.first * range.second;
+            no -= range.second;
+        } else {
+            return boundary + (no * range.first);
+        }
+        }
+        return -1;
     }
-    return -1;
-  }
 
     uint8_t BufferPoolFindBlock(pageno no, unsigned int page_size, Node *dst, int fd)
     {
@@ -184,7 +183,7 @@ class SimpleBufferPool : public BufferPool {
 
         Node *dst = NULL;
         assert(BufferPoolFindBlock(no, page_size, dst, fd));
-        *buf = (void *)(dst->blk + (no - dst->page_start) * pagePart[4][size2Idx[page_size]]);
+        buf = (void *)(uint8_t *)(dst->blk + (no - dst->page_start) * pagePart[4][size2Idx[page_size]]);
     }
 
     void write_page(pageno no, unsigned int page_size, void *buf, int t_idx) override {
@@ -195,12 +194,12 @@ class SimpleBufferPool : public BufferPool {
         assert(ret == page_size);
     }
 
-  ~SimpleBufferPool() override {
-    for (int &fd : fds) {
-      close(fd);
+    ~SimpleBufferPool() override {
+        for (int &fd : fds) {
+        close(fd);
+        }
+        assert(!DeInitPool(&smallArch.pool, POOL_SMALL_BLOCK >> 13, (MEM_SIZE >> 2) * 3 / POOL_SMALL_BLOCK));
     }
-    assert(!DeInitPool(&pool1, POOL_SMALL_BLOCK >> 13, (MEM_SIZE >> 2) * 3 / POOL_SMALL_BLOCK));
-  }
 };
 
 class Server {

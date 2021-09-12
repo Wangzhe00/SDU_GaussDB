@@ -3,8 +3,8 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 20:12:25
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-11 17:15:22
- * @FilePath: \src\src\hash_bucket.cpp
+ * @LastEditTime: 2021-09-12 14:20:27
+ * @FilePath: \sftp\src\src\hash_bucket.cpp
  */
 #include <stdint.h>
 #include <stdlib.h>
@@ -16,10 +16,8 @@
 
 #include "errcode.h"
 #include "const.h"
-#include "list.h"
-#include "memPool.h"
 #include "hash_bucket.h"
-#include "replacement.h"
+#include "disk.h"
 
 
 uint64_t pagePart[PART_CNT][PS_CNT];
@@ -35,7 +33,7 @@ uint8_t InitHashBucket(HashBucket *hashBucket, uint32_t _size)
     assert(hashBucket->bkt);
     for (uint32_t i = 0; i < _size; ++i) {
         // hashBucket->bkt[i].size = 0;                /* can del */
-        INIT_HLIST_HEAD(&hashBucket->bkt[i].hlist);
+        INIT_HLIST_HEAD(&hashBucket->bkt[i].hhead);
     }
     return ROK;
 }
@@ -53,12 +51,12 @@ static inline uint32_t GetExpectBucketIdx(uint32_t pno, uint32_t psize)
 uint8_t HashBucketFind(Arch *arch, Node *dst, uint32_t pno, uint32_t psize, uint32_t &bucketIdx)
 {
     assert(arch);
+    HashBucket *hashBucket = &arch->bkt;
     uint32_t expectBktIdx = GetExpectBucketIdx(pno, psize);
     bucketIdx = expectBktIdx % hashBucket->size;
     Node *tar = NULL, *pos = NULL;
-    HashBucket *hashBucket = arch->bkt;
-    if (!hlist_empty(&hashBucket->bkt[bucketIdx].hlist)) { /* have nodes */
-        hlist_for_each_entry(pos, &hashBucket->bkt[bucketIdx].hlist, hash) {
+    if (!hlist_empty(&hashBucket->bkt[bucketIdx].hhead)) { /* have nodes */
+        hlist_for_each_entry(pos, &hashBucket->bkt[bucketIdx].hhead, hash) {
             if (pos->pageFlg.layer == expectBktIdx / bucketIdx) {
                 tar = pos;
                 break;
@@ -78,7 +76,7 @@ uint8_t HashBucketFind(Arch *arch, Node *dst, uint32_t pno, uint32_t psize, uint
 
 static inline void InitNodePara(Node *node, uint8_t sizeType, uint8_t poolType, uint32_t bucketIdx)
 {
-    node->pageFlg = 0;
+    memset(&node->pageFlg, 0, sizeof(node->pageFlg));
     node->pageFlg.sizeType = sizeType;                      /* 初始化 pageFlg */
     node->pageFlg.poolType = poolType;
     node->bucketIdx = bucketIdx;
@@ -105,9 +103,9 @@ uint8_t HashBucketMiss(Arch *arch, Node *dst, uint32_t pno, uint32_t psize, uint
         assert(pool->unusedCnt > 0);
         pool->unusedCnt--;
         pool->usedCnt++;
-        node = list_entry(pool->unused.memP.next, Node, memP);      /* 获取 Node 头地址 */
-        list_del(pool->unused.memP.next);                           /* 将 Node 从 unused 池子移动到 used 池子 */
-        list_add(&node->memP, &pool->used.memP);
+        node = list_entry(pool->unused.next, Node, memP);      /* 获取 Node 头地址 */
+        list_del(pool->unused.next);                           /* 将 Node 从 unused 池子移动到 used 池子 */
+        list_add(&node->memP, &pool->used);
         InitNodePara(node, sizeType - 1, pool->poolType, bucketIdx);
         node->page_start = pno - ((pno - pagePart[PAGE_PREFIX_SUM][sizeType]) % pagePart[BLCOK_PAGE_COUNT][sizeType]);
         hlist_add_head(&node->hash, &arch->bkt.bkt[bucketIdx].hhead); /* 加入到对应的 hash 桶中 */

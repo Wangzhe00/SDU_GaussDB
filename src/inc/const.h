@@ -1,10 +1,10 @@
 /*
  * @Author: your name
  * @Date: 2021-09-05 14:36:28
- * @LastEditTime: 2021-09-11 17:09:58
+ * @LastEditTime: 2021-09-12 14:35:08
  * @LastEditors: Wangzhe
  * @Description: In User Settings Edit
- * @FilePath: \src\inc\const.h
+ * @FilePath: \sftp\src\inc\const.h
  */
 #ifndef CONST_H
 #define CONST_H
@@ -30,7 +30,7 @@
 #define GET_LEFT_BIT(len, idx, val) ((1 << (len - idx - 1)) & val)
 
 #define BUCKET_MAX_IDX 0xffffff
-#define LIST_HEAD 0xffff
+#define _LIST_HEAD 0xffff
 
 typedef enum {
     PS_8K  =    8 * 1024,
@@ -48,6 +48,6 @@ enum {
     SUM_BYTES,          /* 总字节数，在计算offset使用 */
     LAST_NUM,           /* 最后一个 cache line 剩余的 page 个数，防止最后一个块读取失败*/
     PART_CNT,
-}
+};
 
 #endif /* CONST_H */

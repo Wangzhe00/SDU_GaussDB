@@ -3,8 +3,8 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 14:05:34
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-11 13:20:53
- * @FilePath: \src\src\memPool.cpp
+ * @LastEditTime: 2021-09-12 14:31:14
+ * @FilePath: \sftp\src\src\memPool.cpp
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,7 +13,6 @@
 #include <string.h>
 #include <sys/mman.h>
 #include "const.h"
-#include "list.h"
 #include "errcode.h"
 #include "memPool.h"
 
@@ -36,6 +35,7 @@ void *MallocZero(uint32_t size)
 
 uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
 {
+    printf("Init memory pool, pageFlg = %d, size = %d\n", pageFlg, size);
     uint32_t blockSize = GET_LEFT_BIT(32, 4, pageFlg) ? POOL_LARGE_BLOCK : POOL_SMALL_BLOCK;
     pool->size = size;
     pool->capacity = GET_LEFT_BIT(32, 4, pageFlg) ? size * POOL_LARGE_BLOCK : size * POOL_SMALL_BLOCK;
@@ -49,7 +49,8 @@ uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
     for (uint32_t i = 0; i < size; ++i) {
         Node *node = (Node *)malloc(sizeof(Node));
         memset(node, 0, sizeof(Node));
-        node->pageFlg = pageFlg;
+        node->pageFlg.poolType = pool->poolType;
+        node->pageFlg.used = 1;        
         node->blk = MallocZero(blockSize);
         INIT_HLIST_NODE(&node->hash);
         INIT_LIST_HEAD(&node->arc.lru);
