@@ -8,6 +8,9 @@
  */
 #ifndef REPLACEMENT_H
 #define REPLACEMENT_H
+#include "baseStruct.h"
 
+
+uint8_t InitLRU(LRU *lru);
 
 #endif /* REPLACEMENT_H */

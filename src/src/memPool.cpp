@@ -2,8 +2,8 @@
  * @Description: 
  * @Author: Wangzhe
  * @Date: 2021-09-05 14:05:34
- * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-12 14:31:14
+ * @LastEditors: Please set LastEditors
+ * @LastEditTime: 2021-09-13 11:07:49
  * @FilePath: \sftp\src\src\memPool.cpp
  */
 #include <stdio.h>
@@ -15,6 +15,7 @@
 #include "const.h"
 #include "errcode.h"
 #include "memPool.h"
+#include "disk.h"
 
 void *Malloc(uint32_t size)
 {
@@ -53,22 +54,29 @@ uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
         node->pageFlg.used = 1;        
         node->blk = MallocZero(blockSize);
         INIT_HLIST_NODE(&node->hash);
-        INIT_LIST_HEAD(&node->arc.lru);
+        INIT_LIST_HEAD(&node->lru);
+        INIT_LIST_HEAD(&node->memP);
         list_add(&node->memP, &pool->unused);
     }
     return ROK;
 }
 
-uint8_t DeInitPool(Pool *pool, uint8_t ps, uint32_t size)
+uint8_t DeInitPool(Pool *pool, int fd)
 {
-    // Node *pos, *next, *t;
-
-    // list_for_each_entry_safe(pos, next, &pool->unused, memP) {
-    //     t = pos;
-    //     list_del(&pos->memP);
-    //     free(t->blk);
-    //     free(t);
-    // }
+    Node *pos, *next, *t;
+    int dirtyCnt = 0;
+    list_for_each_entry_safe(pos, next, &pool->used, memP) {
+        t = pos;
+        pool->usedCnt--;
+        list_del(&pos->memP);
+        if (t->pageFlg.dirty) {
+            WriteBack(t, t->blkSize, fd);
+            dirtyCnt++;
+        }
+        free(t->blk);
+        free(t);
+    }
+    printf("dirtyCnt = %d\n", dirtyCnt);
     return ROK;
 }
 

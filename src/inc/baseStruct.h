@@ -2,8 +2,8 @@
  * @Description: 
  * @Author: Wangzhe
  * @Date: 2021-09-12 13:09:47
- * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-12 19:14:29
+ * @LastEditors: Please set LastEditors
+ * @LastEditTime: 2021-09-13 10:58:08
  * @FilePath: \src\inc\baseStruct.h
  */
 #ifndef BASE_STRUCT_H
@@ -58,11 +58,12 @@ typedef struct {
     uint32_t page_start;     /* first page num */
     uint32_t bucketIdx;      /* hash bucket index */
     
+    uint32_t blkSize;        /* block real size */
     void *blk;               /* first address */
+
     struct list_head memP;   /* list for mempool */
     struct hlist_node hash;  /* list for hash bucket */
-
-    struct list_head lru;   /* list for lru */
+    struct list_head lru;    /* list for lru */
 
 } Node;
 
@@ -92,6 +93,7 @@ typedef struct {
     uint32_t miss;
     uint32_t hit;
     uint32_t query;
+    uint32_t fetched;
     BucketNode *bkt;
 } HashBucket;
 

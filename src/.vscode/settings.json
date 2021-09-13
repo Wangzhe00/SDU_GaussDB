@@ -20,7 +20,9 @@
         "optional": "cpp",
         "string_view": "cpp",
         "system_error": "cpp",
-        "thread": "cpp"
+        "thread": "cpp",
+        "stdexcept": "cpp",
+        "basestruct.h": "c"
     },
     "cSpell.words": [
         "BLCOK",

@@ -3,8 +3,8 @@
  * @Author: Wangzhe
  * @Date: 2021-09-06 13:23:02
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-12 19:18:13
- * @FilePath: \src\src\replacement.cpp
+ * @LastEditTime: 2021-09-12 20:04:42
+ * @FilePath: \sftp\src\src\replacement.cpp
  */
 #include <stdint.h>
 #include <stdlib.h>
@@ -268,7 +268,12 @@ void ARC::ARC_RHit(Node *node, HashBucket* bkt, Pool *pool) {
 
 void ARC::InitNodePara(Node *node, uint8_t sizeType, uint8_t poolType, uint32_t bucketIdx)
 {
-    memset(&node->pageFlg, 0, sizeof(node->pageFlg));
+    // memset(&node->pageFlg, 0, sizeof(node->pageFlg));
+    node->pageFlg.dirty = 0;
+    node->pageFlg.isG = 0;
+    node->pageFlg.layer = 0;
+    node->pageFlg.rep = 0;
+    node->pageFlg.used = 1;
     node->pageFlg.sizeType = sizeType;                      /* 初始化 pageFlg */
     node->pageFlg.poolType = poolType;
     node->bucketIdx = bucketIdx;
@@ -276,11 +281,11 @@ void ARC::InitNodePara(Node *node, uint8_t sizeType, uint8_t poolType, uint32_t 
 
 void ARC::FULLMiss(Arch *arch, Node *dst, uint32_t pno, uint32_t psize, uint32_t &bucketIdx, int fd) {
     assert(this->RExpLen != 0);
-    uint8_t sizeType = size2Idx[psize];
+    uint8_t sizeType = size2Idx(psize);
     uint64_t offset = GetPageOffset(pno, sizeType);
     uint32_t fetchSize = pool->blkSize;
     if (bucketIdx == pagePart[CACHE_IDX][sizeType] && pagePart[LAST_NUM][sizeType] != 0) {
-        fetchSize = pagePart[LAST_NUM][sizeType] * pagePart[PAGE_SIZE][sizeType];
+        fetchSize = pagePart[LAST_NUM][sizeType] * pagePart[E_PAGE_SIZE_][sizeType];
     }
     Node *newNode = NULL;
     if (this->RRealLen < this->RExpLen) {
@@ -382,15 +387,6 @@ uint8_t ARC::hit(Node *node, HashBucket* bkt, Pool *pool) {
 
 
 /* LRU begin */
-
-uint8_t InitLRU(LRU *lru) {
-    lru->lurSize = 0;
-    INIT_LIST_HEAD(&lru->head);
-}
-
-
-
-
 
 /* LRU end */
 

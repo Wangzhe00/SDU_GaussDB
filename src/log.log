@@ -1,0 +1,19 @@
+[INFO ] 2021-09-12 20:11:53,167(0) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(398): Server will listen at file /tmp/socket.sock null 
+[INFO ] 2021-09-12 20:11:53,168(1) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(123): BufferPool using file /home/wangzhe/cxx/in/in null 
+[DEBUG] 2021-09-12 20:11:55,254(2087) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(136): memory pool 1 size: 32768 null 
+[DEBUG] 2021-09-12 20:11:55,254(2087) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(137): memory pool 2 size: 0 null 
+[DEBUG] 2021-09-12 20:11:55,254(2087) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(138): memory pool 1 capacity: 1073741824 null 
+[DEBUG] 2021-09-12 20:11:55,254(2087) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(139): memory pool 2 capacity: 0 null 
+[DEBUG] 2021-09-12 20:11:55,259(2092) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(144): hash bucket small size: 983063 null 
+[DEBUG] 2021-09-12 20:11:55,259(2092) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(145): hash bucket small capSize: 7864504 null 
+[DEBUG] 2021-09-12 20:11:55,259(2092) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(146): hash bucket chunk size: 3847 null 
+[DEBUG] 2021-09-12 20:11:55,259(2092) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(147): hash bucket chunk capSize: 30776 null 
+[DEBUG] 2021-09-12 20:11:55,259(2092) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(152): arc small RSize: 0 null 
+[DEBUG] 2021-09-12 20:11:55,259(2092) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(153): arc chunk RSize: 0 null 
+[DEBUG] 2021-09-12 20:11:55,259(2092) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(406): Start initializing... null 
+[INFO ] 2021-09-12 20:11:55,259(2092) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(253): Create socket success. null 
+[INFO ] 2021-09-12 20:11:59,649(6482) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(384): Got signal SIGINT. null 
+[INFO ] 2021-09-12 20:11:59,649(6482) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(270): Accecpt abort null 
+[INFO ] 2021-09-12 20:11:59,649(6482) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(287): Start shutting down. null 
+[INFO ] 2021-09-12 20:11:59,649(6482) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(293): Server closed. null 
+[DEBUG] 2021-09-12 20:11:59,649(6482) --> [0x7f71e4194780] /home/wangzhe/SDU_GaussDB/src/src/main.cpp(412): Start deinitializing... null 
