@@ -26,7 +26,7 @@
 #include <random>
 
 #include "CommonDecl.h"
-#include "main.h"
+#include "SimpleBufferPool.h"
 // #include "CDLL.h"
 // #include "LRUBufferPool.h"
 
@@ -282,7 +282,7 @@ void bench_workload(const string &file_name,
     if (node.rw == 0) { // read
       //printf("TEST No.%-5X R %u %08X\n", i, node.size, node.no);
       uint8_t *rbuf = nullptr;
-      bp->read_page(node.no, PAGE_SIZE_TAB[node.size], &rbuf, i%32);
+      bp->read_page(node.no, PAGE_SIZE_TAB[node.size], (void **)&rbuf, i%32);
       uint32_t val = getBenchValue(node.no);
       if (!chkU32(rbuf, val)) {
         printf("TEST Failed when processing work node %d <RW:%c S:%u %08X> [%08X] != [%08X]\n", i, (node.rw ? 'W' : 'R'), node.size, node.no, (*(uint32_t *)rbuf), val);

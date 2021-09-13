@@ -3,12 +3,12 @@
  * @Author: Wangzhe
  * @Date: 2021-09-12 20:16:54
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-12 20:57:30
- * @FilePath: \sftp\src\src\CommonDecl.cpp
+ * @LastEditTime: 2021-09-13 13:09:54
+ * @FilePath: /src/src/CommonDecl.cpp
  */
 
 #include "CommonDecl.h"
-#include "main.h"
+#include "SimpleBufferPool.h"
 
 
 const size_t PAGE_NODE_SIZE_MAP[5] = { POOL_CACHENODE_S_SIZE, POOL_CACHENODE_S_SIZE, POOL_CACHENODE_S_SIZE, POOL_CACHENODE_L_SIZE, 0 };
