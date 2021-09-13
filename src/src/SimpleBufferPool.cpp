@@ -2,9 +2,9 @@
  * @Description: 
  * @Author: Wangzhe
  * @Date: 2021-09-12 21:00:37
- * @LastEditors: Please set LastEditors
- * @LastEditTime: 2021-09-13 11:09:23
- * @FilePath: \sftp\src\src\SimpleBufferPool.cpp
+ * @LastEditors: Wangzhe
+ * @LastEditTime: 2021-09-13 21:53:48
+ * @FilePath: /src/src/SimpleBufferPool.cpp
  */
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -37,6 +37,13 @@ static log4cxx::LoggerPtr logger = log4cxx::Logger::getLogger("SimpleBufferPool"
 extern uint64_t pagePart[PART_CNT][PS_CNT];
 // extern std::unordered_map<uint32_t, uint8_t> size2Idx;
 Arch smallArch, largeArch;
+
+uint32_t SimpleBufferPool::getStartPage(uint8_t sizeType, uint32_t pno) {
+    sizeType++;
+    return pno - ((pno - pagePart[PAGE_PREFIX_SUM][sizeType]) % pagePart[BLCOK_PAGE_COUNT][sizeType]);
+}
+
+extern mutex g_lruMutex;
 
 
 void SimpleBufferPool::InitConstPara() {
@@ -116,53 +123,43 @@ void SimpleBufferPool::InitConstPara() {
         return -1;
     }
 
-    uint8_t SimpleBufferPool::BufferPoolFindBlock(pageno no, unsigned int page_size, Node **dst, int fd)
-    {
-        Arch *arch = (page_size == PS_2M) ? &largeArch : &smallArch;
-        assert(!HashBucketFind(arch, dst, no, page_size, fd));
-        return ROK;
-    }
-
-    uint8_t SimpleBufferPool::BufferPoolWritePage(pageno no, unsigned int page_size, Node **dst, int fd, void *buf) {
-        Arch *arch = (page_size == PS_2M) ? &largeArch : &smallArch;
-        assert(!HashBucketFind(arch, dst, no, page_size, fd));
-        (*dst)->pageFlg.dirty = 1;
-        memcpy((uint8_t *)(*dst)->blk + (no - (*dst)->page_start) * page_size, buf, page_size);
-        return ROK;
-    }
-
-    void SimpleBufferPool::read_page(pageno no, unsigned int page_size, void **buf, int t_idx)  {
-        // size_t offset = page_start_offset(no);
+    void SimpleBufferPool::read_page(pageno no, unsigned int page_size, void *buf, int t_idx)  {
         int fd = fds[t_idx];
-        // lseek(fd, offset, SEEK_SET);
-        // size_t ret = read(fd, buf, page_size);
-        // if (ret != page_size) {
-        //     LOG4CXX_FATAL(logger,
-        //                 "read size error read:" << ret << " page size: " << page_size << " errno: " << errno << " page no: "
-        //                                         << no);
-        // }
-        // assert(ret == page_size);
-
-        Node *dst = NULL;
-        assert(!BufferPoolFindBlock(no, page_size, &dst, fd));
-        uint8_t *p = (uint8_t *)dst->blk;
-        *buf = (void *)((uint8_t *)dst->blk + (no - dst->page_start) * page_size);
+        g_lruMutex.lock();
+        Arch *arch = (page_size == PS_2M) ? &largeArch : &smallArch;
+        Node *dst = HashBucketFind(arch, no, page_size, fd, 0);
+        uint8_t *ptr = (uint8_t *)((uint8_t *)dst->blk + (no - dst->page_start) * page_size);
+        memcpy(buf, ptr, page_size);
+        g_lruMutex.unlock();
     }
 
     void SimpleBufferPool::write_page(pageno no, unsigned int page_size, void *buf, int t_idx)  {
-        // uint64_t offset = page_start_offset(no);
         int fd = fds[t_idx];
-        // lseek(fd, offset, SEEK_SET);
-        // size_t ret = write(fd, buf, page_size);
-        // assert(ret == page_size);
-        Node *dst = NULL;
-        assert(!BufferPoolWritePage(no, page_size, &dst, fd, buf));
+        g_lruMutex.lock(); 
+        Arch *arch = (page_size == PS_2M) ? &largeArch : &smallArch;
+        Node *dst = HashBucketFind(arch, no, page_size, fd, 1);
+        uint8_t *ptr = (uint8_t *)dst->blk + (no - dst->page_start) * page_size;
+        memcpy(ptr, buf, page_size);
+        // printf("After pno = %X, fd = %d, Off = %d \n", no, fd, (no - dst->page_start) * page_size);
+        // uint8_t *pp = (uint8_t*)buf;
+        // printf("src: ");
+        // for (int i = 0; i < 5; ++i) {
+        //     printf("[%08X] ", *(uint8_t*)(pp + i));
+        // }puts("");
+        // pp = (uint8_t *)dst->blk;
+        // printf("dst: ");
+        // for (int i = 0; i < 5; ++i) {
+        //     printf("[%08X] ", *(uint8_t*)(pp + i));
+        // }puts("");
+        g_lruMutex.unlock();
     }
 
     SimpleBufferPool::~SimpleBufferPool()  {
+        LOG4CXX_INFO(logger, "Recycling...");
         assert(!DeInitPool(&smallArch.pool, fds[0]));
         assert(!DeInitPool(&largeArch.pool, fds[0]));
         for (int &fd : fds) {
             close(fd);
         }
+        LOG4CXX_INFO(logger, "small Hit rate: " << ((smallArch.bkt.hit) * 1.0 / 100000000));
     }

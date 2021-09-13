@@ -182,11 +182,8 @@ class Server {
         LOG4CXX_ERROR(logger, "read failed");
         break;
       }
-      char buf[30];
-      sprintf(buf, "type = [%d], no = [%d], size = [%d]", header.msg_type, header.page_no, header.page_size);
-      LOG4CXX_DEBUG(logger, buf);
       switch (header.msg_type) {
-        case SET:
+        case SET: {
           if (read_loop(worker_data->client_socket, buffer, header.page_size, logger) <= 0) {
             break;
           }
@@ -196,8 +193,9 @@ class Server {
                          sizeof(header.page_size),
                          logger) <= 0) {
           }
+        }
           break;
-        case GET:
+        case GET: {
             worker_data->bufferpool->read_page(header.page_no, header.page_size, buffer, worker_data->thread_index);
             if (write_loop(worker_data->client_socket,
                             (unsigned char *) &header.page_size,
@@ -206,6 +204,7 @@ class Server {
             }
             if (write_loop(worker_data->client_socket, buffer, header.page_size, logger) <= 0) {
             }
+        }
             break;
         default: LOG4CXX_ERROR(logger, "Invalid msg type");
       }

@@ -17,17 +17,21 @@
 #include <log4cxx/propertyconfigurator.h>
 #include <cassert>
 #include <unordered_map>
+#include <unordered_set>
+#include <queue>
 #include <list>
 
-
+#include <algorithm>
+#include <stdexcept>
 #include <cctype>
 #include <cstdint>
+#include <set>
 #include <map>
 #include <cstdio>
 #include <mutex>
 #include <chrono>
 #include <random>
-
+#include <tuple>
 
 using std::string;
 using std::map;
@@ -43,7 +47,7 @@ using pageoffset_t = uint32_t; // node��ҳ��ƫ���� �����
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
 
-#define LRU_NODE_COUNT 2048
+// #define LRU_NODE_COUNT 2048
 #define POOL_CACHENODE_S_SIZE 32 * 1024
 // #define POOL_CACHENODE_S_SIZE 2 * 1024 * 1024
 #define POOL_CACHENODE_L_SIZE 2 * 1024 * 1024
@@ -53,7 +57,13 @@ using pageoffset_t = uint32_t; // node��ҳ��ƫ���� �����
 #define PAGE_PS_32K (32*1024)      // 32Kҳ���ֽ���
 #define PAGE_PS_2M  (2*1024*1024)  // 2M ҳ���ֽ���
 
-
+// enum PAGE_SIZE : size_t
+// {
+//   PS_8K = PAGE_PS_8K,
+//   PS_16K = PAGE_PS_16K,
+//   PS_32K = PAGE_PS_32K,
+//   PS_2M = PAGE_PS_2M,
+// };
 enum E_PAGE_SIZE : uint8_t
 {
   E_PS_8K = 0,
@@ -90,7 +100,6 @@ inline void memcopy(uint8_t *__restrict a, const uint8_t *__restrict b, size_t n
   std::copy(b, b + n, a);
 }
 
-// #define USE_MEM_POOL
 
 #ifdef USE_MEM_POOL
  #include "MemoryPool/MemoryPool.h"
@@ -99,6 +108,7 @@ inline void memcopy(uint8_t *__restrict a, const uint8_t *__restrict b, size_t n
 typedef uint8_t SBuf[POOL_CACHENODE_S_SIZE];
 typedef uint8_t LBuf[POOL_CACHENODE_L_SIZE];
 
+// #define USE_MEM_POOL
 
 #ifdef USE_MEM_POOL
 static MemoryPool<SBuf> poolS;
@@ -121,3 +131,24 @@ inline void deallocate(void *ptr) {
   delete[](uint8_t *)ptr;
 #endif // USE_MEM_POOL
 }
+
+
+// #define CCACHE_POOL_DEBUG_FLAG
+// #ifdef CCACHE_POOL_DEBUG_FLAG
+static std::mutex stdmutex;
+extern std::mutex stdmutex;
+// #endif
+
+
+class SpinLock
+{
+  std::atomic_bool flag;
+public:
+  inline void lock(void) {
+    bool e = false;
+    while (!flag.compare_exchange_weak(e, true, std::memory_order_acquire)) { std::this_thread::yield(); e = false; }
+  }
+  inline void unlock(void) {
+    flag.store(false, std::memory_order_release);
+  }
+};

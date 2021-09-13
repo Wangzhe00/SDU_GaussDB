@@ -1,9 +1,11 @@
 
+cmake_minimum_required (VERSION 3.8)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_FIND_LIBRARY_SUFFIXES .a .lib)
 set(APR_LIB_PATH /usr/local/apr/lib)
 
-set(TARGET main)
+set(TARGET example)
 include_directories(./inc)
 
 
@@ -32,7 +34,15 @@ find_library(LIB_LOG4CXX log4cxx)
 find_library(LIB_APR apr-1 PATHS ${APR_LIB_PATH})
 find_library(LIB_APRUTIL aprutil-1 PATHS ${APR_LIB_PATH})
 
-target_link_libraries(${TARGET} pthread expat ${LIB_LOG4CXX} ${LIB_APR} ${LIB_APRUTIL})
+
+if(LIB_LOG4CXX AND LIB_APR AND LIB_APRUTIL)
 target_link_libraries(CCachePool pthread expat ${LIB_LOG4CXX} ${LIB_APR} ${LIB_APRUTIL})
+target_link_libraries(${TARGET} pthread expat ${LIB_LOG4CXX} ${LIB_APR} ${LIB_APRUTIL})
+else()
+message(${Log4cxx_LIBRARY})
+target_link_libraries(CCachePool pthread ${Log4cxx_LIBRARY})
+target_link_libraries(${TARGET} pthread ${Log4cxx_LIBRARY})
+endif()
+
 
 configure_file(conf/log4cxx.properties log4cxx.properties COPYONLY)

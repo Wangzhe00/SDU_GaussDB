@@ -2,9 +2,9 @@
  * @Description: 
  * @Author: Wangzhe
  * @Date: 2021-09-12 13:09:47
- * @LastEditors: Please set LastEditors
- * @LastEditTime: 2021-09-13 10:58:08
- * @FilePath: \src\inc\baseStruct.h
+ * @LastEditors: Wangzhe
+ * @LastEditTime: 2021-09-13 19:25:55
+ * @FilePath: /src/inc/baseStruct.h
  */
 #ifndef BASE_STRUCT_H
 #define BASE_STRUCT_H
@@ -94,6 +94,7 @@ typedef struct {
     uint32_t hit;
     uint32_t query;
     uint32_t fetched;
+    uint32_t hitWrite;
     BucketNode *bkt;
 } HashBucket;
 

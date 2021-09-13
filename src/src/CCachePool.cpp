@@ -28,7 +28,7 @@
 #include "CommonDecl.h"
 #include "SimpleBufferPool.h"
 // #include "CDLL.h"
-// #include "LRUBufferPool.h"
+// #include "SimpleBufferPool.h"
 
 /*
 #define FD_TYPE FILE*
@@ -67,13 +67,99 @@ enum MSG_TYPE
   INVALID_TYPE
 };
 
-/*
-class HashBin
+template <typename T, typename Compare = std::less<T>>
+class concurrentSet
 {
-  CDLL *bin[];
-};
-*/
+private:
+  std::set<T, Compare> set_;
+  std::mutex mutex_;
 
+public:
+  typedef typename std::unordered_set<T, Compare>::iterator iterator;
+  typedef typename std::unordered_set<T, Compare>::size_type size_type;
+  
+
+  std::pair<iterator, bool> insert(const T &val) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return set_.insert(val);
+  }
+
+  size_type size() const {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return set_.size();
+  }
+
+  size_type count(const T &k) const {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return set_.count(k);
+  }
+
+  size_type erase(const T &k) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return set_.erase(k);
+  }
+
+  // 如果不存在则插入
+  bool countAndInsert(const T &k) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (set_.count(k)) {
+      return false;
+    }
+    set_.insert(k);
+    return true;
+  }
+};
+
+template <typename K, typename TP1, typename TP2>
+class cprwl
+{
+private:
+  std::unordered_map<K, std::pair<TP1, TP2>> map_;
+  std::mutex mutex_;
+
+public:
+  typedef typename std::unordered_map<K, std::pair<TP1, TP2>>::iterator iterator;
+  typedef typename std::unordered_map<K, std::pair<TP1, TP2>>::size_type size_type;
+  /*
+  size_type size(void) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return map_.size();
+  }*/
+
+  bool incR(const K &key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::pair<TP1, TP2> &p = map_[key];
+    if (p.first > 0) { return false; }
+    ++p.second;
+    return true;
+  }
+  void decR(const K &key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::pair<TP1, TP2> &p = map_[key];
+    --p.second;
+    if (p.second == 0) { map_.erase(key); }
+  }
+
+  bool incW(const K &key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::pair<TP1, TP2> &p = map_[key];
+    if (p.first > 0 || p.second > 0) { return false; }
+    ++p.first;
+    return true;
+  }
+  void decW(const K &key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::pair<TP1, TP2> &p = map_[key];
+    --p.first;
+    if (p.first == 0) { map_.erase(key); }
+  }
+
+};
+
+
+
+// #define OPRA 0 
+// #define OPRA randWRb(randEngine) 
 
 
 // 测试使用 #####################################################################################################################################################################
@@ -87,7 +173,7 @@ class HashBin
 // 162.9M/s
 
 #define PAGE_NUM_8K  (0 * 2) //  1G * 2
-#define PAGE_NUM_16K (65536 * 10)  //  1G * 2 1441792
+#define PAGE_NUM_16K (65536 * 8)  //  1G * 2 1441792
 #define PAGE_NUM_32K (0 * 2)  //  1G * 2
 #define PAGE_NUM_2M  (0 * 2)    //  1G * 2
 
@@ -107,7 +193,7 @@ map<size_t, size_t> page_no_info{
 struct __attribute__((packed)) WorkLoadNode
 {
   uint32_t rw : 4; // R0 W1
-  uint32_t size : 4;
+  E_PAGE_SIZE size : 4;
   uint32_t no : 24;
 };
 const char *fileName = "/home/wangzhe/guo/in/test.dat";
@@ -205,27 +291,41 @@ void init_testbench(const string &file_name,
 }
 
 // 清理测试环境
-void deinit_testbench(WorkLoadNode *pLoad) {
+void deinit_testbench() {
   delete[]pageIds;
-  delete[]pLoad;
 }
+
+std::atomic_uint_fast32_t curJob;
+WorkLoadNode loads[workNodeCount];
+std::atomic_bool waitStartFlag = true;
+std::atomic_bool testFailed = false;
+cprwl<pageno, uint32_t, uint32_t> currentPage;
+
+
+
 
 // 加载测试序列
 // 当前实现未从序列文件加载数据，为随机访问随机读写
 // 待加载wrokload文件
-WorkLoadNode *load_workload(uint32_t nodes) {
-  WorkLoadNode *ret = new WorkLoadNode[nodes];
+void load_workload(uint32_t nodes) {
+  std::unordered_set<pageno> hash;
+  std::queue<pageno> queue;
   for (uint32_t i = 0; i < nodes; ++i) {
     uint32_t pageType = 1; // randPageType(randEngine);
     while (pageType >= PAGE_NUM_TAB[pageType]) {
       if (++pageType > 3) { pageType = 0; }
     }
-    WorkLoadNode &node = ret[i];
-    node.no = pageCountPrefix[pageType] + RANDOM_DISTRIB_TAB[pageType](randEngine);
+    WorkLoadNode &node = loads[i];
+    pageno no = 0;
+    do {
+      no = pageCountPrefix[pageType] + RANDOM_DISTRIB_TAB[pageType](randEngine);
+    } while (hash.count(no));
+    queue.push(no); hash.insert(no); 
+    if (queue.size() > 100) { hash.erase(queue.front()); queue.pop(); }
+    node.no = no;
     node.rw = randWRb(randEngine);
-    node.size = pageType;
+    node.size = (E_PAGE_SIZE)pageType;
   }
-  return ret;
 }
 
 // 冷校验数据库
@@ -241,8 +341,9 @@ bool checkDbIntegrity(const string &file_name) {
       FREAD(c_fd, buf, 4);
       if (pageIds[pageCnt] != *(uint32_t *)buf) {
         pass = false;
-        printf("CheckFail @Page.%08X Off.%08X Read:[%08X] != [%08X]\n", pageCnt, ptr, *(uint32_t *)buf, pageIds[pageCnt]);
-        return false;
+        uint32_t bufv = *(uint32_t *)buf;
+        printf("CheckFail @Page.%08X Off.%08X Read:[%08X] != [%08X] %d\n", pageCnt, ptr, bufv, pageIds[pageCnt], (bufv - pageIds[pageCnt]));
+        // return false; // 检查所有点
       }
       ptr += range.first;
     }
@@ -256,17 +357,18 @@ bool chkU32(void *pa, uint32_t v) {
   return *(uint32_t *)pa == v;
 }
 
+
+
 // 使用给定测试序列测试
 void bench_workload(const string &file_name,
-  const map<size_t, size_t> &page_no_info,
-  const WorkLoadNode *pLoad, uint32_t nodes) {
+  const map<size_t, size_t> &page_no_info) {
 
   auto start = chrono::high_resolution_clock::now();
   init_testbench(fileName, page_no_info);
   auto end = chrono::high_resolution_clock::now();
   double elapsedTime = chrono::duration_cast<chrono::nanoseconds>(end - start).count() * 1e-9;
   printf("BenchInitTime:%fs\n", elapsedTime);
-  printf("DBFile:%s TestPoints:%d\n", file_name.c_str(), nodes);
+  printf("DBFile:%s TestPoints:%d\n", file_name.c_str(), workNodeCount);
   start = chrono::high_resolution_clock::now();
   SimpleBufferPool *bp = new SimpleBufferPool(fileName, page_no_info);
   end = chrono::high_resolution_clock::now();
@@ -274,18 +376,18 @@ void bench_workload(const string &file_name,
   printf("InitTime:%fs\nTestBegin...\n", elapsedTime);
 
    
-  uint32_t ckptcnt = nodes / 100;
+  uint32_t ckptcnt = workNodeCount / 100;
   uint32_t nextCkpt = ckptcnt;
   start = chrono::high_resolution_clock::now();
-  for (uint32_t i = 0; i < nodes; ++i) {
-    const WorkLoadNode &node = pLoad[i];
+  for (uint32_t i = 0; i < workNodeCount; ++i) {
+    const WorkLoadNode &node = loads[i];
     if (node.rw == 0) { // read
       //printf("TEST No.%-5X R %u %08X\n", i, node.size, node.no);
-      uint8_t *rbuf = nullptr;
-      bp->read_page(node.no, PAGE_SIZE_TAB[node.size], (void **)&rbuf, i%32);
+      // uint8_t *rbuf = nullptr;
+      bp->read_page(node.no, PAGE_SIZE_TAB[node.size], buf, i%32);
       uint32_t val = getBenchValue(node.no);
-      if (!chkU32(rbuf, val)) {
-        printf("TEST Failed when processing work node %d <RW:%c S:%u %08X> [%08X] != [%08X]\n", i, (node.rw ? 'W' : 'R'), node.size, node.no, (*(uint32_t *)rbuf), val);
+      if (!chkU32(buf, val)) {
+        printf("TEST Failed when processing work node %d <RW:%c S:%u %08X> [%08X] != [%08X]\n", i, (node.rw ? 'W' : 'R'), node.size, node.no, (*(uint32_t *)buf), val);
         throw std::exception();
       }
     } else { // write
@@ -295,7 +397,7 @@ void bench_workload(const string &file_name,
       bp->write_page(node.no, PAGE_SIZE_TAB[node.size], buf, 1);
     }
     if (i == nextCkpt) {
-      printf("%u / %u done\n", i, nodes);
+      printf("%u / %u done\n", i, loads);
       nextCkpt += ckptcnt;
     }
   }
@@ -308,7 +410,7 @@ void bench_workload(const string &file_name,
   end = chrono::high_resolution_clock::now();
   elapsedTime = chrono::duration_cast<chrono::nanoseconds>(end - start).count() * 1e-9;
   printf("RecyclingTime:%fs\n", elapsedTime);
-  printf("Checking DB file integrity... ");
+  printf("Checking DB file integrity... \n");
   // 离线检查数据库完整性
   if (checkDbIntegrity(file_name)) {
     printf("Success\n");
@@ -319,21 +421,120 @@ void bench_workload(const string &file_name,
   }
 }
 
+
+void mtWorkThread(SimpleBufferPool *bp, uint32_t threadId) {
+  uint_fast32_t jobIdx;
+  uint8_t *buf = new uint8_t[PS_2M];
+  printf("Thread %d[%d] ready\n", threadId, std::this_thread::get_id());
+  while (waitStartFlag) { std::this_thread::yield(); }
+  while ((jobIdx = curJob.fetch_add(1)) < workNodeCount && !testFailed)  {
+    const WorkLoadNode &node = loads[jobIdx];
+    if (node.rw == 0) { // read
+#ifdef CCACHE_POOL_DEBUG_FLAG
+      {
+        std::lock_guard with(stdmutex);
+        printf("TEST T %02d No.%-5X R PSize:%u Fpage:%08X Page:%08X\n", threadId, jobIdx, node.size, bp->getStartPage(node.size, node.no), node.no);
+      }
+#endif // CCACHE_POOL_DEBUG_FLAG
+      // uint8_t *rbuf = nullptr;
+      while (!currentPage.incR(node.no)) { std::this_thread::yield(); }
+      bp->read_page(node.no, PAGE_SIZE_TAB[node.size], buf, threadId);
+      uint32_t val = getBenchValue(node.no);
+      currentPage.decR(node.no);
+      if (!chkU32(buf, val)) {
+        printf("TEST Failed when thread %d processing work node %d <RW:%c S:%u %08X> Read:[%08X] != Bench:[%08X]\n", threadId, jobIdx, (node.rw ? 'W' : 'R'), node.size, node.no, (*(uint32_t *)buf), val);
+        testFailed = true;
+        break;
+        throw std::exception();
+      }
+    } else { // write
+#ifdef CCACHE_POOL_DEBUG_FLAG
+      {
+        std::lock_guard with(stdmutex);
+        printf("TEST T %02d No.%-5X W PSize:%u Fpage:%08X Page:%08X %08X\n", threadId, jobIdx, node.size, bp->getStartPage(node.size, node.no), node.no, jobIdx);
+      }
+#endif // CCACHE_POOL_DEBUG_FLAG
+      *(uint32_t *)buf = jobIdx;
+      while (!currentPage.incW(node.no)) { std::this_thread::yield(); }
+      setBenchValue(node.no, jobIdx);
+      bp->write_page(node.no, PAGE_SIZE_TAB[node.size], buf, threadId);
+      currentPage.decW(node.no);
+    }
+  }
+  printf("Thread %d[%d] exiting\n", threadId, std::this_thread::get_id());
+}
+// 使用给定测试序列测试
+void bench_workload_mt(const string &file_name,
+  const map<size_t, size_t> &page_no_info) {
+  curJob = 0;
+
+  auto start = chrono::high_resolution_clock::now();
+  init_testbench(fileName, page_no_info);
+  auto end = chrono::high_resolution_clock::now();
+  double elapsedTime = chrono::duration_cast<chrono::nanoseconds>(end - start).count() * 1e-9;
+  printf("BenchInitTime:%fs\n", elapsedTime);
+  printf("DBFile:%s TestPoints:%d\n", file_name.c_str(), workNodeCount);
+  start = chrono::high_resolution_clock::now();
+  SimpleBufferPool *bp = new SimpleBufferPool(fileName, page_no_info);
+  end = chrono::high_resolution_clock::now();
+  elapsedTime = chrono::duration_cast<chrono::nanoseconds>(end - start).count() * 1e-9;
+  printf("InitTime:%fs\nTestBegin...\n", elapsedTime);
+
+  std::vector<std::thread> threads;
+  for (uint32_t i = 0; i < 32; ++i) {
+    threads.push_back(std::thread(mtWorkThread, bp, i));
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  uint32_t ckptcnt = std::max(1000u, workNodeCount / 100);
+  uint32_t nextCkpt = ckptcnt;
+  start = chrono::high_resolution_clock::now();
+  waitStartFlag = false; // start
+  while (curJob.load() < workNodeCount && !testFailed) {
+    if (nextCkpt < curJob) {
+      printf("%u / %u done\n", curJob.load(), workNodeCount);
+      nextCkpt += ckptcnt;
+    }
+  }
+  for (uint32_t i = 0; i < 32; ++i) {
+    threads[i].join();
+  }
+  end = chrono::high_resolution_clock::now();
+  elapsedTime = chrono::duration_cast<chrono::nanoseconds>(end - start).count() * 1e-9;
+  printf("TestDone\nRunTime:%fs\n", elapsedTime);
+  bp->show_hit_rate();
+  start = chrono::high_resolution_clock::now();
+  delete bp;
+  end = chrono::high_resolution_clock::now();
+  elapsedTime = chrono::duration_cast<chrono::nanoseconds>(end - start).count() * 1e-9;
+  printf("RecyclingTime:%fs\n", elapsedTime);
+  printf("Checking DB file integrity... \n");
+  // 离线检查数据库完整性
+  if (checkDbIntegrity(file_name)) {
+    printf("Success\n");
+  } else {
+    printf("DB Check Fail\n");
+    // throw std::exception();
+    return;
+  }
+}
+
+
 // 本地测试入口
 // 当前实现为单线程测试
 int main(int argc, char *argv[]) {
   std::ios_base::sync_with_stdio(false);
   log4cxx::PropertyConfigurator::configureAndWatch("./log4cxx.properties");
   printf("Loading bench workload...\n");
-  WorkLoadNode *workLoads = load_workload(workNodeCount);
+  load_workload(workNodeCount);
   printf("Wordload Loaded\n");
   auto start = chrono::high_resolution_clock::now();
-  bench_workload(fileName, page_no_info, workLoads, workNodeCount);
+  // bench_workload(fileName, page_no_info);
+  bench_workload_mt(fileName, page_no_info);
   auto end = chrono::high_resolution_clock::now();
   double elapsedTime = chrono::duration_cast<chrono::nanoseconds>(end - start).count() * 1e-9;
   printf("TestBenchRunTime:%fs\n", elapsedTime);
 
-  deinit_testbench(workLoads);
+  deinit_testbench();
   printf("Press <Enter> to exit.\n");
   //while (getchar() != '\n') {
   //}

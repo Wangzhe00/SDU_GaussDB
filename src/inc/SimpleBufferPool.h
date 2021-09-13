@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-12 20:20:43
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-13 13:11:07
+ * @LastEditTime: 2021-09-13 19:24:14
  * @FilePath: /src/inc/SimpleBufferPool.h
  */
 #ifndef SIMPLE_BUFFER_POOL_H 
@@ -32,7 +32,7 @@ class BufferPool {
   };
 
   /** 读取一个指定页号为#no的页面, 将内容填充只buf */
-  virtual void read_page(pageno no, unsigned int page_size, void **buf, int t_idx) {};
+  virtual void read_page(pageno no, unsigned int page_size, void *buf, int t_idx) {};
 
   /** 将buf内容写入一个指定页号为#no的页面 */
   virtual void write_page(pageno no, unsigned int page_size, void *buf, int t_idx) {};
@@ -54,13 +54,11 @@ class SimpleBufferPool : public BufferPool {
 
     SimpleBufferPool(const string &file_name, const map<size_t, size_t> &page_no_info);
 
+    uint32_t getStartPage(uint8_t sizeType, uint32_t pno);
+
     size_t page_start_offset(pageno no);
 
-    uint8_t BufferPoolFindBlock(pageno no, unsigned int page_size, Node **dst, int fd);
-
-    uint8_t BufferPoolWritePage(pageno no, unsigned int page_size, Node **dst, int fd, void *buf);
-
-    void read_page(pageno no, unsigned int page_size, void **buf, int t_idx) override ;
+    void read_page(pageno no, unsigned int page_size, void *buf, int t_idx) override ;
 
     void write_page(pageno no, unsigned int page_size, void *buf, int t_idx) override ;
 
