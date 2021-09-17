@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-12 21:00:37
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-17 16:18:30
+ * @LastEditTime: 2021-09-17 19:48:43
  * @FilePath: /src/src/SimpleBufferPool.cpp
  */
 #include <sys/types.h>
@@ -83,14 +83,14 @@ SimpleBufferPool::SimpleBufferPool(const string &file_name,
     assert(!InitHashBucket(&smallArch.bkt, (uint32_t)(pagePart[PAGE_PREFIX_SUM][4] + 1)));
     InitLRU(&smallArch.rep);
 
-    LOG4CXX_DEBUG(logger, "memory pool 1 size: " << smallArch.pool.size);
-    LOG4CXX_DEBUG(logger, "memory pool 1 capacity: " << smallArch.pool.capacity);
-    LOG4CXX_DEBUG(logger, "hash bucket small size: " << smallArch.bkt.size);
-    LOG4CXX_DEBUG(logger, "hash bucket small capSize: " << smallArch.bkt.capSize);
-    LOG4CXX_DEBUG(logger, "arc small RSize: " << smallArch.rep.lruSize);
-    LOG4CXX_DEBUG(logger, "realMemStat: " << realMemStat);
-    LOG4CXX_DEBUG(logger, "usefulMemStat: " << usefulMemStat);
-    LOG4CXX_DEBUG(logger, "unusefulMemStat: " << realMemStat - usefulMemStat);
+    LOG4CXX_INFO(logger, "memory pool 1 size: " << smallArch.pool.size);
+    LOG4CXX_INFO(logger, "memory pool 1 capacity: " << smallArch.pool.capacity);
+    LOG4CXX_INFO(logger, "hash bucket small size: " << smallArch.bkt.size);
+    LOG4CXX_INFO(logger, "hash bucket small capSize: " << smallArch.bkt.capSize);
+    LOG4CXX_INFO(logger, "arc small RSize: " << smallArch.rep.lruSize);
+    LOG4CXX_INFO(logger, "realMemStat: " << realMemStat);
+    LOG4CXX_INFO(logger, "usefulMemStat: " << usefulMemStat);
+    LOG4CXX_INFO(logger, "unusefulMemStat: " << realMemStat - usefulMemStat);
 }
 
 void SimpleBufferPool::read_page(pageno no, unsigned int page_size, void *buf, int t_idx)  {
@@ -115,7 +115,7 @@ SimpleBufferPool::~SimpleBufferPool()  {
     char buf[64];
     HashBucket *bkt = &smallArch.bkt;
     LOG4CXX_INFO(logger, "Recycling...");
-    sprintf(buf, "pool, usedCnt = %d, ununsedCnt = %d\n", smallArch.pool.usedCnt, smallArch.pool.unusedCnt);
+    sprintf(buf, "pool, usedCnt = %d, ununsedCnt = %d", smallArch.pool.usedCnt, smallArch.pool.unusedCnt);
     LOG4CXX_INFO(logger, buf);
     assert(!DeInitPool(&smallArch.pool, fds[0]));
     for (int &fd : fds) {
@@ -123,6 +123,12 @@ SimpleBufferPool::~SimpleBufferPool()  {
     }
     uint32_t hit = bkt->hit.load();
     uint32_t miss = bkt->miss.load();
-    sprintf(buf, "small Hit:[%d], Miss:[%d], rate[%.2f]\n", hit, miss, (hit * 1.0) / (hit + miss));
+    uint32_t fetched = bkt->fetched.load();
+    uint32_t hitWrite = bkt->hitWrite.load();
+    uint32_t readCnt = bkt->readCnt.load();
+    uint32_t writeCnt = bkt->writeCnt.load();
+    sprintf(buf, "small Hit:[%d], Miss:[%d], Rate[%.2f%], Fetched:[%d], HitWrite:[%d]", hit, miss, (hit * 100.0) / (hit + miss), fetched, hitWrite);
+    LOG4CXX_INFO(logger, buf);
+    sprintf(buf, "small ReadCnt:[%d](%.2f%), WriteCnt:[%d](%.2f%)", readCnt, readCnt * 100.0 / (readCnt + writeCnt), writeCnt, writeCnt * 100.0 / (readCnt + writeCnt));
     LOG4CXX_INFO(logger, buf);
 }

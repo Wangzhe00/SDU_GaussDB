@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-12 13:09:47
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-17 16:12:58
+ * @LastEditTime: 2021-09-17 19:40:26
  * @FilePath: /src/inc/baseStruct.h
  */
 #ifndef BASE_STRUCT_H
@@ -100,6 +100,8 @@ typedef struct {
     std::atomic_uint32_t hit;
     std::atomic_uint32_t fetched;
     std::atomic_uint32_t hitWrite;
+    std::atomic_uint32_t readCnt;
+    std::atomic_uint32_t writeCnt;
     BucketNode *bkt;
 } HashBucket;
 

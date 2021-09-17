@@ -223,12 +223,12 @@ void signal_handler(int signum) {
 }
 
 int main(int argc, char *argv[]) {
-  printf("size = %lld\n", (uint64_t)BufferPool::max_buffer_pool_size);
   log4cxx::PropertyConfigurator::configureAndWatch("../conf/log4cxx.properties");
   if (argc != 7) {
     LOG4CXX_ERROR(logger, "usage: " << argv[0] << " /path/to/datafile /tmp/sockfile.sock 8k 16k 32k 2m");
     return -1;
   }
+  system("free -h");
   signal(SIGINT, signal_handler);
   std::string socket_file = std::string(argv[2]);
   LOG4CXX_INFO(logger, "Server will listen at file " + socket_file);
@@ -247,5 +247,6 @@ int main(int argc, char *argv[]) {
 
   LOG4CXX_DEBUG(logger, "Start deinitializing...");
   delete bp;
+  system("free -h");
   return 0;
 }

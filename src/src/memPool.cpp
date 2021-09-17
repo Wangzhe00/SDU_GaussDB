@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 14:05:34
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-16 21:07:42
+ * @LastEditTime: 2021-09-17 19:49:52
  * @FilePath: /src/src/memPool.cpp
  */
 #include <stdio.h>
@@ -21,13 +21,6 @@ extern uint64_t pagePart[PART_CNT][PS_CNT];
 extern uint64_t realMemStat;
 extern uint64_t usefulMemStat;
 
-void *Malloc(uint32_t size)
-{
-    void *ret = malloc(size);
-    assert(ret);
-    return ret;
-}
-
 /* prevent lazy operation */
 void *MallocZero(uint32_t size)
 {
@@ -40,7 +33,6 @@ void *MallocZero(uint32_t size)
 
 uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
 {
-    printf("Init memory pool, pageFlg = %d, size = %d\n", pageFlg, size);
     uint8_t isLarge = (GET_LEFT_BIT(32, 4, pageFlg) > 0);
     uint32_t blockSize = isLarge ? POOL_LARGE_BLOCK : POOL_SMALL_BLOCK;
     pool->size = size;
@@ -83,7 +75,7 @@ uint8_t DeInitPool(Pool *pool, int fd)
         free(t->blk);
         free(t);
     }
-    printf("dirtyCnt = %d\n", dirtyCnt);
+    printf("dirtyCnt = [%d]\n", dirtyCnt);
     return ROK;
 }
 

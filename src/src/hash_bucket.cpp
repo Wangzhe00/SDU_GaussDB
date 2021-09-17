@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 20:12:25
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-17 16:38:39
+ * @LastEditTime: 2021-09-17 19:41:34
  * @FilePath: /src/src/hash_bucket.cpp
  */
 #include <stdio.h>
@@ -86,6 +86,11 @@ Node *HashBucketFind(Arch *arch, uint32_t pno, uint32_t psize, int fd, uint8_t i
     Node *dst = NULL;  
     Node *node = NULL; /* 临时变量 */
     uint8_t sizeType = size2Idx(psize);
+    if (isW) {
+        hashBucket->writeCnt++;
+    } else {
+        hashBucket->readCnt++;
+    }
     // std::mutex &nodeLock = hashBucket->bkt[pno].bLock;
     Mutex &nodeLock = hashBucket->bkt[pno].bLock;
     nodeLock.lock();
@@ -100,7 +105,7 @@ Node *HashBucketFind(Arch *arch, uint32_t pno, uint32_t psize, int fd, uint8_t i
         dst = hlist_entry(hashBucket->bkt[pno].hhead.first, Node, hash);
         if (isW) {
             dst->pageFlg.dirty = 1;
-            // hashBucket->hitWrite++;
+            hashBucket->hitWrite++;
         }
         list_del(&dst->lru);
         list_add(&dst->lru, &arch->rep.head);
@@ -138,15 +143,13 @@ Node *HashBucketFind(Arch *arch, uint32_t pno, uint32_t psize, int fd, uint8_t i
         hlist_del(&node->hash);
         g_lock.unlock();
         if (node->pageFlg.dirty) {
-            // hashBucket->fetched++;    /* atomic_uint32_t */
+            hashBucket->fetched++;
             node->pageFlg.dirty = 0;
             WriteBack(node, (uint32_t)pagePart[E_PAGE_SIZE_][node->pageFlg.sizeType + 1], fd);
         }
         oldNodeLock.unlock();
-        // arch->rep.lruSize--;
     }
     /* node 不属于LRU，也不属于hashbucket */
-    // arch->rep.lruSize++;                                         /* 更新 lru 实际长度 */
     while (!g_lock.try_lock()) {
         nodeLock.unlock();
         std::this_thread::yield();
@@ -155,7 +158,7 @@ Node *HashBucketFind(Arch *arch, uint32_t pno, uint32_t psize, int fd, uint8_t i
     }
     list_add(&node->lru, &arch->rep.head);   
     g_lock.unlock();
-
+    
     InitNodePara(node, sizeType - 1, pool->poolType, pno);
     if (isW) {
         node->pageFlg.dirty = 1;
