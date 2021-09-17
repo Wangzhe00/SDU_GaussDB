@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-12 20:20:43
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-13 19:24:14
+ * @LastEditTime: 2021-09-16 20:07:15
  * @FilePath: /src/inc/SimpleBufferPool.h
  */
 #ifndef SIMPLE_BUFFER_POOL_H 
@@ -55,8 +55,6 @@ class SimpleBufferPool : public BufferPool {
     SimpleBufferPool(const string &file_name, const map<size_t, size_t> &page_no_info);
 
     uint32_t getStartPage(uint8_t sizeType, uint32_t pno);
-
-    size_t page_start_offset(pageno no);
 
     void read_page(pageno no, unsigned int page_size, void *buf, int t_idx) override ;
 

@@ -2,9 +2,9 @@
  * @Description: 
  * @Author: Wangzhe
  * @Date: 2021-09-05 14:05:34
- * @LastEditors: Please set LastEditors
- * @LastEditTime: 2021-09-13 11:07:49
- * @FilePath: \sftp\src\src\memPool.cpp
+ * @LastEditors: Wangzhe
+ * @LastEditTime: 2021-09-16 21:07:42
+ * @FilePath: /src/src/memPool.cpp
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +16,10 @@
 #include "errcode.h"
 #include "memPool.h"
 #include "disk.h"
+
+extern uint64_t pagePart[PART_CNT][PS_CNT];
+extern uint64_t realMemStat;
+extern uint64_t usefulMemStat;
 
 void *Malloc(uint32_t size)
 {
@@ -37,13 +41,14 @@ void *MallocZero(uint32_t size)
 uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
 {
     printf("Init memory pool, pageFlg = %d, size = %d\n", pageFlg, size);
-    uint32_t blockSize = GET_LEFT_BIT(32, 4, pageFlg) ? POOL_LARGE_BLOCK : POOL_SMALL_BLOCK;
+    uint8_t isLarge = (GET_LEFT_BIT(32, 4, pageFlg) > 0);
+    uint32_t blockSize = isLarge ? POOL_LARGE_BLOCK : POOL_SMALL_BLOCK;
     pool->size = size;
-    pool->capacity = GET_LEFT_BIT(32, 4, pageFlg) ? size * POOL_LARGE_BLOCK : size * POOL_SMALL_BLOCK;
-    pool->blkSize = GET_LEFT_BIT(32, 4, pageFlg) ? POOL_LARGE_BLOCK : POOL_SMALL_BLOCK;
+    pool->capacity = isLarge ? size * 1ll * POOL_LARGE_BLOCK : size * 1ll *  POOL_SMALL_BLOCK;
+    pool->blkSize = isLarge ? POOL_LARGE_BLOCK : POOL_SMALL_BLOCK;
     pool->usedCnt = 0;
     pool->unusedCnt = size;
-    pool->poolType = (GET_LEFT_BIT(32, 4, pageFlg) > 0);
+    pool->poolType = isLarge;
     INIT_LIST_HEAD(&pool->used);
     INIT_LIST_HEAD(&pool->unused);
 
@@ -51,13 +56,15 @@ uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
         Node *node = (Node *)malloc(sizeof(Node));
         memset(node, 0, sizeof(Node));
         node->pageFlg.poolType = pool->poolType;
-        node->pageFlg.used = 1;        
+        node->pageFlg.used = 1;
         node->blk = MallocZero(blockSize);
         INIT_HLIST_NODE(&node->hash);
         INIT_LIST_HEAD(&node->lru);
         INIT_LIST_HEAD(&node->memP);
         list_add(&node->memP, &pool->unused);
     }
+    realMemStat += (sizeof(Node) + blockSize) * 1ll * size;
+    usefulMemStat += blockSize * 1ll * size;
     return ROK;
 }
 
@@ -70,7 +77,7 @@ uint8_t DeInitPool(Pool *pool, int fd)
         pool->usedCnt--;
         list_del(&pos->memP);
         if (t->pageFlg.dirty) {
-            WriteBack(t, t->blkSize, fd);
+            WriteBack(t, (uint32_t)pagePart[E_PAGE_SIZE_][t->pageFlg.sizeType + 1], fd);
             dirtyCnt++;
         }
         free(t->blk);

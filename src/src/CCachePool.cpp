@@ -43,8 +43,12 @@
 #define O_RDWR "rb+"
 */
 
+#define PAGE_NUM_8K  (0 * 2) //  1G * 2
+#define PAGE_NUM_16K (65536 * 8)  //  1G * 2 1441792
+#define PAGE_NUM_32K (0 * 2)  //  1G * 2
+#define PAGE_NUM_2M  (0 * 2)    //  1G * 2
 
-
+const uint32_t workNodeCount = 1'000'000; // 331197; // 8 * 240 * 1024; // 测试点数量 240 * 1024 = 60s
 
 // using namespace std;
 
@@ -172,12 +176,7 @@ public:
 
 // 162.9M/s
 
-#define PAGE_NUM_8K  (0 * 2) //  1G * 2
-#define PAGE_NUM_16K (65536 * 8)  //  1G * 2 1441792
-#define PAGE_NUM_32K (0 * 2)  //  1G * 2
-#define PAGE_NUM_2M  (0 * 2)    //  1G * 2
 
-const uint32_t workNodeCount = 1'000'000; // 331197; // 8 * 240 * 1024; // 测试点数量 240 * 1024 = 60s
 /*
 #define PAGE_NUM_8K  32
 #define PAGE_NUM_16K 16

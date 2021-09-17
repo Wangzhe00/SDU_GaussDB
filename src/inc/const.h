@@ -1,27 +1,27 @@
 /*
  * @Author: your name
  * @Date: 2021-09-05 14:36:28
- * @LastEditTime: 2021-09-12 20:56:46
+ * @LastEditTime: 2021-09-17 16:25:34
  * @LastEditors: Wangzhe
  * @Description: In User Settings Edit
- * @FilePath: \sftp\src\inc\const.h
+ * @FilePath: /src/inc/const.h
  */
 #ifndef CONST_H
 #define CONST_H
 #include <stdexcept>
 
 #define PAGE_CHUNK_SIZE (2 * 1024 * 1024)
-#define MEM_SIZE (5ll * 1024 * 1024 * 1024)
+#define MEM_SIZE (4ll * 1024 * 1024 * 1024)
 #define MX_DB_SIZE (30ll * 1024 * 1024 * 1024)
-#define POOL_SMALL_BLOCK (32 * 1024)
+#define POOL_SMALLEST_BLOCK (8 * 1024)
+#define POOL_SMALL_BLOCK (16 * 1024)
 #define POOL_LARGE_BLOCK (8 * 1024 * 1024)
 #define CHUNK_CACHE_SIZE (POOL_LARGE_BLOCK / PAGE_CHUNK_SIZE)
 
-
 #define ARC_LRU_RATIO 0.7
 
-#define HASH_BUCKET_CLOSE_SMALL_SIZE (MX_DB_SIZE / POOL_SMALL_BLOCK)
-#define HASH_BUCKET_SMALL_SIZE 983063
+#define HASH_BUCKET_CLOSE_SMALL_SIZE (MX_DB_SIZE / POOL_SMALLEST_BLOCK)
+#define HASH_BUCKET_SMALL_SIZE 3932167
 
 #define HASH_BUCKET_CLOSE_CHUNK_SIZE (MX_DB_SIZE / POOL_LARGE_BLOCK)
 #define HASH_BUCKET_CHUNK_SIZE 3847
@@ -42,12 +42,9 @@ enum PS {
 } ;
 
 enum {
-    CACHE_IDX = 0,      /* cache line 前缀和 */
-    PAGE_PREFIX_SUM,    /* 页号前缀和 */
-    BLCOK_PAGE_COUNT,   /* 每个 cache line 包含的 page 个数 */
-    E_PAGE_SIZE_,          /* page大小 */
-    SUM_BYTES,          /* 总字节数，在计算offset使用 */
-    LAST_NUM,           /* 最后一个 cache line 剩余的 page 个数，防止最后一个块读取失败*/
+    E_PAGE_SIZE_ = 0,       /* page大小 */
+    PAGE_PREFIX_SUM = 1,    /* 页号前缀和 */
+    SUM_BYTES = 2,          /* 总字节数，在计算offset使用 */
     PART_CNT,
 };
 

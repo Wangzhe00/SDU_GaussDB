@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 20:12:25
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-13 21:53:32
+ * @LastEditTime: 2021-09-17 16:38:39
  * @FilePath: /src/src/hash_bucket.cpp
  */
 #include <stdio.h>
@@ -22,15 +22,15 @@
 #include "hash_bucket.h"
 #include "disk.h"
 
-using namespace std;
-
 #define DEBUG 1
 
 
-recursive_mutex g_lruMutex, g_lock;
+std::mutex g_mlock; /* 内存池锁 */
+std::mutex g_lock;  /* 全局锁 */
 
 uint64_t pagePart[PART_CNT][PS_CNT];
-// std::unordered_map<uint32_t, uint8_t> size2Idx;
+extern uint64_t realMemStat;
+extern uint64_t usefulMemStat;
 
 uint8_t InitHashBucket(HashBucket *hashBucket, uint32_t _size)
 {
@@ -38,15 +38,14 @@ uint8_t InitHashBucket(HashBucket *hashBucket, uint32_t _size)
     hashBucket->capSize = sizeof(BucketNode) * _size;
     hashBucket->miss = 0;
     hashBucket->hit = 0;
-    hashBucket->query = 0;
     hashBucket->fetched = 0;
     hashBucket->hitWrite = 0;
     hashBucket->bkt = (BucketNode *)malloc(hashBucket->capSize);
     assert(hashBucket->bkt);
     for (uint32_t i = 0; i < _size; ++i) {
-        // hashBucket->bkt[i].size = 0;                /* can del */
         INIT_HLIST_HEAD(&hashBucket->bkt[i].hhead);
     }
+    realMemStat += hashBucket->capSize;
     return ROK;
 }
 
@@ -70,95 +69,101 @@ static void GetNodeFromMemPool(Node **node, Pool *pool) {
     list_add(&(*node)->memP, &pool->used);
 }
 
-static inline void InitNodePara(Node *node, uint8_t sizeType, uint8_t poolType, uint32_t bucketIdx)
+static inline void InitNodePara(Node *node, uint8_t sizeType, uint8_t poolType, uint32_t pno)
 {
-    memset(&node->pageFlg, 0, sizeof(node->pageFlg));
-    node->pageFlg.used = 1;
-    node->pageFlg.sizeType = sizeType;                      /* 初始化 pageFlg */
+    node->pageFlg.sizeType = sizeType;
+    node->pageFlg.dirty = 0;
     node->pageFlg.poolType = poolType;
-    node->bucketIdx = bucketIdx;
-}
-
-void Miss(Arch *arch, Node **dst, uint32_t pno, uint32_t psize, int fd, uint32_t bucketIdx, uint8_t isW) {
-    Node *node = NULL;
-    Pool *pool = &arch->pool;
-    uint8_t sizeType = size2Idx(psize);
-    // uint64_t offset = GetPageOffset(pno, sizeType);
-    uint32_t fetchSize = pool->blkSize;
-    if (bucketIdx == pagePart[CACHE_IDX][sizeType] && pagePart[LAST_NUM][sizeType] != 0) {
-        fetchSize = pagePart[LAST_NUM][sizeType] * pagePart[E_PAGE_SIZE_][sizeType];
-    }
-    // g_lruMutex.lock();
-   
-    if (arch->pool.unusedCnt > 0) {
-        GetNodeFromMemPool(&node, pool);
-    } else {
-        node = list_entry(arch->rep.head.prev, Node, lru);
-        list_del(&node->lru);
-        hlist_del(&node->hash);
-        if (node->pageFlg.dirty) {
-            arch->bkt.fetched++;
-            node->pageFlg.dirty = 0;
-            WriteBack(node, fetchSize, fd);
-        }
-        arch->rep.lruSize--;
-    }
-    arch->rep.lruSize++;                                         /* 更新 lru 实际长度 */
-    InitNodePara(node, sizeType - 1, pool->poolType, bucketIdx);
+    node->pageFlg.used = 1;
+    node->pageFlg.pno = pno;
     INIT_HLIST_NODE(&node->hash);
-    node->page_start = pno - ((pno - pagePart[PAGE_PREFIX_SUM][sizeType]) % pagePart[BLCOK_PAGE_COUNT][sizeType]);
-    node->blkSize = fetchSize;
-    hlist_add_head(&node->hash, &(arch->bkt.bkt[bucketIdx].hhead)); /* 加入到对应的 hash 桶中 */
-    list_add(&node->lru, &arch->rep.head);                       
-    Fetch(node, node->page_start, fetchSize, GetPageOffset(node->page_start, sizeType), fd);
-    *dst = node;
-    if (isW) {
-        (*dst)->pageFlg.dirty = 1;
-    }
-    // g_lruMutex.unlock();
 }
 
 Node *HashBucketFind(Arch *arch, uint32_t pno, uint32_t psize, int fd, uint8_t isW)
 {
-    // g_lruMutex.lock();
     HashBucket *hashBucket = &arch->bkt;
-    uint32_t bucketIdx = GetExpectBucketIdx(pno, psize);
-    Node *newNode = NULL;
-    // g_lock.lock();
-    Node *dst = NULL;
-    if (!hlist_empty(&hashBucket->bkt[bucketIdx].hhead)) { /* have nodes */
-#if DEBUG
-        // printf("[%d] \t Yes! \t size = %d \t ratio = %.2f \t Fetched = %d \t unusedCnt = %d  \t usedCnt = %d\n", 
-        //     pno, arch->rep.lruSize, arch->bkt.hit * 1.0 / (arch->bkt.hit + arch->bkt.miss), 
-        //     arch->bkt.fetched, arch->pool.unusedCnt, arch->pool.usedCnt);
-#endif 
-        arch->bkt.hit++;
-        dst = hlist_entry(hashBucket->bkt[bucketIdx].hhead.first, Node, hash);
+    Pool *pool = &arch->pool;
+    Node *dst = NULL;  
+    Node *node = NULL; /* 临时变量 */
+    uint8_t sizeType = size2Idx(psize);
+    // std::mutex &nodeLock = hashBucket->bkt[pno].bLock;
+    Mutex &nodeLock = hashBucket->bkt[pno].bLock;
+    nodeLock.lock();
+    while (!g_lock.try_lock()) {
+        nodeLock.unlock();
+        std::this_thread::yield();
+        nodeLock.lock();
+        // printf("1111111111   fd = %d, pno = %d, isW = %d\n", fd, pno, isW);
+    }
+    if (!hlist_empty(&hashBucket->bkt[pno].hhead)) { /* Find! */
+        hashBucket->hit++;
+        dst = hlist_entry(hashBucket->bkt[pno].hhead.first, Node, hash);
         if (isW) {
             dst->pageFlg.dirty = 1;
-            hashBucket->hitWrite++;
+            // hashBucket->hitWrite++;
         }
-        // if (dst->pageFlg.dirty && isW) {
-        //     printf("pno = %X, fd = %d\n", pno, fd);
-        //     uint8_t *ptr = (uint8_t*)dst->blk;
-        //     for (int i = 0; i < 5; ++i) {
-        //         printf("[%08X] ", *(uint8_t*)(ptr + i));
-        //     }puts("");
-        // }
-        list_del(&(dst->lru));
-        list_add(&(dst->lru), &arch->rep.head);
+        list_del(&dst->lru);
+        list_add(&dst->lru, &arch->rep.head);
+        g_lock.unlock();
         return dst;
-    } else {
-        // printf("[%d] \t No! \t size = %d \t ratio = %.2f \t Fetched = %d \t unusedCnt = %d  \t usedCnt = %d\n", 
-            // pno, arch->rep.lruSize, arch->bkt.hit * 1.0 / (arch->bkt.hit + arch->bkt.miss), 
-            // arch->bkt.fetched, arch->pool.unusedCnt, arch->pool.usedCnt);
-        hashBucket->miss++;
-        Miss(arch, &dst, pno, psize, fd, bucketIdx, isW);
     }
-    // g_lruMutex.unlock();
-    // printf("[%d]-[%d]:page_start = %d\n", fd, pno, dst->page_start);
-    assert(dst);
-    // g_lock.unlock();
-    return dst;
+    g_lock.unlock();
+    /* 执行到这里说明当前页号MISS，手上拿着目标桶的锁 */
+    hashBucket->miss++;
+    
+    g_mlock.lock();
+    if (pool->unusedCnt > 0) {
+        GetNodeFromMemPool(&node, pool);
+        g_mlock.unlock();
+    } else {
+        g_mlock.unlock();
+        while (!g_lock.try_lock()) {
+            nodeLock.unlock();
+            std::this_thread::yield();
+            nodeLock.lock();
+            // printf("222222222   fd = %d, pno = %d, isW = %d\n", fd, pno, isW);
+        }
+        node = list_entry(arch->rep.head.prev, Node, lru);
+
+        // std::mutex &oldNodeLock = hashBucket->bkt[node->pageFlg.pno].bLock;
+        Mutex &oldNodeLock = hashBucket->bkt[node->pageFlg.pno].bLock;
+        // oldNodeLock.lock();  /* 可能和 nodeLock 导致死锁 */
+        while (!oldNodeLock.try_lock()) {
+            nodeLock.unlock();
+            std::this_thread::yield();
+            nodeLock.lock();
+            // printf("3333333333   fd = %d, pno = %d, isW = %d\n", fd, pno, isW);
+        }
+        list_del(&node->lru);
+        hlist_del(&node->hash);
+        g_lock.unlock();
+        if (node->pageFlg.dirty) {
+            // hashBucket->fetched++;    /* atomic_uint32_t */
+            node->pageFlg.dirty = 0;
+            WriteBack(node, (uint32_t)pagePart[E_PAGE_SIZE_][node->pageFlg.sizeType + 1], fd);
+        }
+        oldNodeLock.unlock();
+        // arch->rep.lruSize--;
+    }
+    /* node 不属于LRU，也不属于hashbucket */
+    // arch->rep.lruSize++;                                         /* 更新 lru 实际长度 */
+    while (!g_lock.try_lock()) {
+        nodeLock.unlock();
+        std::this_thread::yield();
+        nodeLock.lock();
+        // printf("444444444   fd = %d, pno = %d, isW = %d\n", fd, pno, isW);
+    }
+    list_add(&node->lru, &arch->rep.head);   
+    g_lock.unlock();
+
+    InitNodePara(node, sizeType - 1, pool->poolType, pno);
+    if (isW) {
+        node->pageFlg.dirty = 1;
+    } else {
+        Fetch(node, psize, GetPageOffset(pno, sizeType), fd);
+    }
+    hlist_add_head(&node->hash, &hashBucket->bkt[pno].hhead); /* 加入到对应的 hash 桶中 */
+    /* MISS End */
+    return node;
 }
 

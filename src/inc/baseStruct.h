@@ -3,15 +3,45 @@
  * @Author: Wangzhe
  * @Date: 2021-09-12 13:09:47
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-13 19:25:55
+ * @LastEditTime: 2021-09-17 16:12:58
  * @FilePath: /src/inc/baseStruct.h
  */
 #ifndef BASE_STRUCT_H
 #define BASE_STRUCT_H
 
 #include <cstdint>
+#include <atomic>
+#include <thread>
+#include <mutex>
 #include "const.h"
 #include "list.h"
+
+
+class Mutex
+{
+  std::atomic_bool flag;
+public:
+  inline void lock(void) {
+    bool e = false;
+    while (!flag.compare_exchange_weak(e, true, std::memory_order_acquire)) { 
+      std::this_thread::yield(); // do not spin
+      e = false; 
+    }
+  }
+  
+  inline void unlock(void) {
+    flag.store(false, std::memory_order_release);
+  }
+
+  inline bool try_lock(void) {
+    bool e = false;
+    if (flag.compare_exchange_strong(e, true)) {
+        return true;
+    }
+    return false;
+  }
+};
+
 
 typedef struct {
     uint16_t freq;            /* frequency */
@@ -28,49 +58,25 @@ typedef struct {
 } LFUNode;
 
 
-/* size per blk = size * 8K */
+/* sizeof(Node) = sizeof(ptr) * 6 + sizeof(uint32_t) */
 typedef struct {
-    /**
-     * [pageFlg] descrition
-     *       +-------------------------------------------+
-     *       | 0123 4567 8901 2345                       |
-     * bit:  | xxxx_xxxx_xxxx_xxxx xxxx_xxxx xxxx_xxxx   |
-     *       +-------------------------------------------+
-     * 
-     * [0:1] : sizeType, 0: 8K, 1:16K, 2:32K, 3:2MB
-     * [2:2] : schedule strategy, 0:LRU, 1:LFU
-     * [3:3] : dirty flag, 1:dirty
-     * [4:4] : poolType, 0:small, 1:chunk
-     * [5:5] : used, 1:used, is belong mempool
-     * [6:6] : multiple of bucket size, deepest bucket is 2 layers
-     * [7:7] : is ghost
-     * 
-     **/
     struct {
-        uint32_t sizeType : 2;
-        uint32_t rep : 1;
-        uint32_t dirty : 1;
-        uint32_t poolType : 1;
-        uint32_t used : 1;
-        uint32_t layer : 1;
-        uint32_t isG : 1;
+        uint32_t sizeType : 2;  /* 0: 8K, 1:16K, 2:32K, 3:2MB */
+        uint32_t dirty : 1;     /* 1:dirty */
+        uint32_t poolType : 1;  /* 0:small, 1:chunk */
+        uint32_t used : 1;      /* 1:used, is belong mempool */
+        uint32_t pno : 24;      /* hash bucket index */
     } pageFlg;
-    uint32_t page_start;     /* first page num */
-    uint32_t bucketIdx;      /* hash bucket index */
-    
-    uint32_t blkSize;        /* block real size */
-    void *blk;               /* first address */
-
-    struct list_head memP;   /* list for mempool */
-    struct hlist_node hash;  /* list for hash bucket */
-    struct list_head lru;    /* list for lru */
-
+    void *blk;                  /* first address */
+    struct list_head memP;      /* list for mempool */
+    struct list_head lru;       /* list for lru */
+    struct hlist_node hash;     /* list for hash bucket */
 } Node;
 
 typedef struct {
     uint8_t poolType;
-    uint16_t size;
-    uint32_t capacity;
+    uint32_t size;
+    uint64_t capacity;
     uint32_t blkSize;
     uint32_t usedCnt;
     uint32_t unusedCnt;
@@ -78,23 +84,22 @@ typedef struct {
     struct list_head unused;
 }Pool;
 
+// #pragma pack(1)
 typedef struct {
-    // uint16_t size;            /* can del */
+    Mutex bLock;
+    // std::mutex bLock;
     struct hlist_head hhead;
-// TODO:
-    /* add lock or mutex */
-    /* add stat ... e.g. hits, timestamp */
 } BucketNode;
+// #pragma pack(pop)
 
 /* deepest bucket is 4 layers */
 typedef struct {
     uint32_t size;
     uint32_t capSize;
-    uint32_t miss;
-    uint32_t hit;
-    uint32_t query;
-    uint32_t fetched;
-    uint32_t hitWrite;
+    std::atomic_uint32_t miss;
+    std::atomic_uint32_t hit;
+    std::atomic_uint32_t fetched;
+    std::atomic_uint32_t hitWrite;
     BucketNode *bkt;
 } HashBucket;
 
