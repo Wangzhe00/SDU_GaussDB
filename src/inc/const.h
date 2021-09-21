@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2021-09-05 14:36:28
- * @LastEditTime: 2021-09-17 16:25:34
+ * @LastEditTime: 2021-09-20 23:49:45
  * @LastEditors: Wangzhe
  * @Description: In User Settings Edit
  * @FilePath: /src/inc/const.h
@@ -11,8 +11,11 @@
 #include <stdexcept>
 
 #define PAGE_CHUNK_SIZE (2 * 1024 * 1024)
-#define MEM_SIZE (4ll * 1024 * 1024 * 1024)
+#define MEM_SIZE (6464 * 1ll * 1024 * 1024)
 #define MX_DB_SIZE (30ll * 1024 * 1024 * 1024)
+#define LFU_HEAD_HASH (100)
+
+
 #define POOL_SMALLEST_BLOCK (8 * 1024)
 #define POOL_SMALL_BLOCK (16 * 1024)
 #define POOL_LARGE_BLOCK (8 * 1024 * 1024)

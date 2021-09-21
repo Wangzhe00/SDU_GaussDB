@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-12 20:20:43
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-16 20:07:15
+ * @LastEditTime: 2021-09-17 20:55:50
  * @FilePath: /src/inc/SimpleBufferPool.h
  */
 #ifndef SIMPLE_BUFFER_POOL_H 
@@ -50,7 +50,8 @@ class SimpleBufferPool : public BufferPool {
  public:
     void InitConstPara();
 
-    void InitLRU(LRU *lru) ;
+    void InitLRU(LRU *lru);
+    void InitLfuHeadPool(Arch *arch, uint32_t size);
 
     SimpleBufferPool(const string &file_name, const map<size_t, size_t> &page_no_info);
 

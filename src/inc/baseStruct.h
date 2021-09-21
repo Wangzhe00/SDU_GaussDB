@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-12 13:09:47
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-17 19:40:26
+ * @LastEditTime: 2021-09-19 01:16:14
  * @FilePath: /src/inc/baseStruct.h
  */
 #ifndef BASE_STRUCT_H
@@ -42,16 +42,16 @@ public:
   }
 };
 
-
+/* node size = 6 * sizeof(ptr) + 4*/
 typedef struct {
-    uint16_t freq;            /* frequency */
-    uint16_t len;             /* bucket real len */
-    struct list_head list;    /* list of head node */
-    struct list_head pool;    /* list of lfu memory pool */
-    struct list_head hhead;   /* hash head, need O(1) get tail in shrink F phase */
+    uint16_t freq;              /* frequency */
+    uint32_t len;               /* vertical real len */
+    struct list_head hlist;     /* horizontal list */
+    struct list_head vlist;     /* vertical list, need O(1) get tail in shrink phase */
+    struct list_head pool;      /* list of lfu memory pool */
 } LFUHead;
 
-/* node size = 4 * sizeof(ptr) */
+/* node size = 3 * sizeof(ptr) */
 typedef struct {
     LFUHead *head;
     struct list_head hnode;
@@ -69,8 +69,9 @@ typedef struct {
     } pageFlg;
     void *blk;                  /* first address */
     struct list_head memP;      /* list for mempool */
-    struct list_head lru;       /* list for lru */
     struct hlist_node hash;     /* list for hash bucket */
+    // struct list_head lru;       /* list for lru */
+    LFUNode lfu;                /* list for lfu */
 } Node;
 
 typedef struct {
@@ -88,6 +89,7 @@ typedef struct {
 typedef struct {
     Mutex bLock;
     // std::mutex bLock;
+    uint16_t freq;
     struct hlist_head hhead;
 } BucketNode;
 // #pragma pack(pop)
@@ -156,6 +158,9 @@ typedef struct {
     Pool pool;
     HashBucket bkt;
     LRU rep;
+    LFUHead lfu;
+    struct list_head lfuHeadUsedPool;
+    struct list_head lfuHeadUnusedPool;
 } Arch;
 
 #endif /* BASE_STRUCT_H */

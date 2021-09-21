@@ -42,13 +42,15 @@
 #undef O_RDWR
 #define O_RDWR "rb+"
 */
+#define THREAD_NUM 32
+#define RAND_SEED 1234
 
 #define PAGE_NUM_8K  (0 * 2) //  1G * 2
 #define PAGE_NUM_16K (65536 * 8)  //  1G * 2 1441792
 #define PAGE_NUM_32K (0 * 2)  //  1G * 2
 #define PAGE_NUM_2M  (0 * 2)    //  1G * 2
 
-const uint32_t workNodeCount = 1'000'000; // 331197; // 8 * 240 * 1024; // 测试点数量 240 * 1024 = 60s
+const uint32_t workNodeCount = 10'000'000; // 331197; // 8 * 240 * 1024; // 测试点数量 240 * 1024 = 60s
 
 // using namespace std;
 
@@ -202,7 +204,7 @@ pageno PAGE_COUNT; // 总页数
 uint32_t *pageIds; // 缓存bench中的页特征值
 std::mutex benchLock;
 const uint32_t PAGEIDENT = 0x80000000u;// 0xDEADBEEF;
-std::default_random_engine randEngine(1354);
+std::default_random_engine randEngine(RAND_SEED);
 std::uniform_int_distribution<unsigned> randPage8(0, PAGE_NUM_8K - 1);
 std::uniform_int_distribution<unsigned> randPage16(0, PAGE_NUM_16K - 1);
 std::uniform_int_distribution<unsigned> randPage32(0, PAGE_NUM_32K - 1);
@@ -232,6 +234,7 @@ void init_testbench(const string &file_name,
   }
   FCLOSE(c_fd);
   c_fd = FOPEN(file_name.c_str(), O_RDWR);
+//   c_fd = FOPEN(file_name.c_str(), O_RDWR | O_DIRECT);
   if (c_fd <= 0) {
     throw std::runtime_error("Can not open the source file");
   }
@@ -271,12 +274,12 @@ void init_testbench(const string &file_name,
   pageno nextCkpt = ckptcnt;
   size_t ptr = 0;
   size_t page_cnt = 0;
+  FSEEK(c_fd, 0, SEEK_SET);
   for (auto &range : page_no_info) {
     for (size_t i = 0; i < range.second; ++i, ++page_cnt) {
-      FSEEK(c_fd, ptr, SEEK_SET);
       *(uint32_t *)buf = (uint32_t)(page_cnt + PAGEIDENT);
       pageIds[page_cnt] = (uint32_t)(page_cnt + PAGEIDENT);
-      FWRITE(c_fd, buf, 4);
+      FWRITE(c_fd, buf, range.first);
       ptr += range.first;
       if (page_cnt > nextCkpt) {
         printf("%d/%d\n", page_cnt, PAGE_COUNT);
@@ -428,6 +431,9 @@ void mtWorkThread(SimpleBufferPool *bp, uint32_t threadId) {
   while (waitStartFlag) { std::this_thread::yield(); }
   while ((jobIdx = curJob.fetch_add(1)) < workNodeCount && !testFailed)  {
     const WorkLoadNode &node = loads[jobIdx];
+    if (jobIdx == 566148) {
+        volatile int a = 1;
+    }
     if (node.rw == 0) { // read
 #ifdef CCACHE_POOL_DEBUG_FLAG
       {
@@ -480,7 +486,8 @@ void bench_workload_mt(const string &file_name,
   printf("InitTime:%fs\nTestBegin...\n", elapsedTime);
 
   std::vector<std::thread> threads;
-  for (uint32_t i = 0; i < 32; ++i) {
+  int num = THREAD_NUM;
+  for (uint32_t i = 0; i < num; ++i) {
     threads.push_back(std::thread(mtWorkThread, bp, i));
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -492,9 +499,11 @@ void bench_workload_mt(const string &file_name,
     if (nextCkpt < curJob) {
       printf("%u / %u done\n", curJob.load(), workNodeCount);
       nextCkpt += ckptcnt;
+    } else {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
   }
-  for (uint32_t i = 0; i < 32; ++i) {
+  for (uint32_t i = 0; i < num; ++i) {
     threads[i].join();
   }
   end = chrono::high_resolution_clock::now();

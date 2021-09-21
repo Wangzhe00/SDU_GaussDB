@@ -3,7 +3,7 @@
  * @Author: Wangzhe
  * @Date: 2021-09-05 14:05:34
  * @LastEditors: Wangzhe
- * @LastEditTime: 2021-09-17 19:49:52
+ * @LastEditTime: 2021-09-20 23:47:18
  * @FilePath: /src/src/memPool.cpp
  */
 #include <stdio.h>
@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <string.h>
+#include <thread>
 #include <sys/mman.h>
 #include "const.h"
 #include "errcode.h"
@@ -20,16 +21,22 @@
 extern uint64_t pagePart[PART_CNT][PS_CNT];
 extern uint64_t realMemStat;
 extern uint64_t usefulMemStat;
+// extern std::atomic_uint_fast32_t runCnt;
 
 /* prevent lazy operation */
 void *MallocZero(uint32_t size)
 {
     uint8_t *ret = (uint8_t *)malloc(size);
     assert(ret);
+    memset(ret, 0, size);
     mlock(ret, size);
     return (void *)ret;
 }
 
+void InitLfuNode(LFUNode *node) {
+    node->head = NULL;
+    INIT_LIST_HEAD(&node->hnode);
+}
 
 uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
 {
@@ -51,7 +58,8 @@ uint8_t InitPool(Pool *pool, uint32_t pageFlg, uint32_t size)
         node->pageFlg.used = 1;
         node->blk = MallocZero(blockSize);
         INIT_HLIST_NODE(&node->hash);
-        INIT_LIST_HEAD(&node->lru);
+        InitLfuNode(&node->lfu);
+        // INIT_LIST_HEAD(&node->lru);
         INIT_LIST_HEAD(&node->memP);
         list_add(&node->memP, &pool->unused);
     }
@@ -64,6 +72,10 @@ uint8_t DeInitPool(Pool *pool, int fd)
 {
     Node *pos, *next, *t;
     int dirtyCnt = 0;
+    // while (runCnt.load()) {
+    //     printf("False, runCnt = %d\n", runCnt.load());
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    // }
     list_for_each_entry_safe(pos, next, &pool->used, memP) {
         t = pos;
         pool->usedCnt--;
